@@ -1,0 +1,9 @@
+/.idea/
+/.env
+/.env.*
+/dist/
+/AGENTS.md
+/DRUID_PULSE_PROJECT_PLAN.md
+/.agents/
+/.codex/
+*.log
