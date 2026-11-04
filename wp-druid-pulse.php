@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: DruID Pulse for WordPress
- * Description: Independent DruID Pulse integration. Development foundation; event tracking and delivery are not available yet.
- * Version: 0.2.0
+ * Description: Independent DruID Pulse integration with page-view selection. Event tracking and delivery are not available yet.
+ * Version: 0.3.0
  * Requires at least: 6.9
  * Requires PHP: 8.3
  * Author: Genetsis
@@ -14,6 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once __DIR__ . '/src/ViewSelection.php';
 require_once __DIR__ . '/src/Lifecycle.php';
 require_once __DIR__ . '/src/Plugin.php';
 

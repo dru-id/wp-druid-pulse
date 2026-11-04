@@ -7,11 +7,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 final class Plugin {
-	private string $plugin_basename;
+	private string $plugin_file;
 	private ?\WP_Error $initialization_error = null;
 
 	public function __construct( string $plugin_file ) {
-		$this->plugin_basename = plugin_basename( $plugin_file );
+		$this->plugin_file = $plugin_file;
 	}
 
 	public function register_hooks(): void {
@@ -27,8 +27,17 @@ final class Plugin {
 	public function initialize(): void {
 		$this->initialization_error = Lifecycle::initialize();
 
-		if ( null !== $this->initialization_error && is_admin() ) {
-			add_action( 'admin_notices', array( $this, 'show_initialization_error' ) );
+		if ( null !== $this->initialization_error ) {
+			if ( is_admin() ) {
+				add_action( 'admin_notices', array( $this, 'show_initialization_error' ) );
+			}
+			return;
+		}
+
+		if ( is_admin() ) {
+			require_once __DIR__ . '/ViewCatalog.php';
+			require_once __DIR__ . '/Admin/TrackingPage.php';
+			( new Admin\TrackingPage( $this->plugin_file ) )->register_hooks();
 		}
 	}
 
@@ -44,7 +53,7 @@ final class Plugin {
 	}
 
 	public function add_plugin_status( array $plugin_meta, string $plugin_file ): array {
-		if ( $this->plugin_basename !== $plugin_file ) {
+		if ( plugin_basename( $this->plugin_file ) !== $plugin_file ) {
 			return $plugin_meta;
 		}
 
@@ -55,7 +64,7 @@ final class Plugin {
 		}
 
 		$plugin_meta[] = esc_html__(
-			'Installable foundation. Event tracking and delivery are not available yet.',
+			'Page-view selection is available under DruID Pulse. Event tracking and delivery are not available yet.',
 			'wp-druid-pulse'
 		);
 
