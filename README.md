@@ -4,9 +4,9 @@ Plugin independiente para enviar a DruID Pulse actividad de consumidores autenti
 
 ## Estado
 
-Versión de desarrollo **0.5.0**. Permite seleccionar contenidos para páginas vistas desde **DruID Pulse → Tracking** y configurar/probar la autenticación OAuth2 desde **DruID Pulse → Connection**.
+Versión de desarrollo **0.6.0**. Permite seleccionar contenidos para páginas vistas desde **DruID Pulse → Tracking** y configurar/probar la autenticación OAuth2 desde **DruID Pulse → Connection**.
 
-Incluye un almacén interno de eventos y su mantenimiento mediante Action Scheduler. La captura de eventos, la selección de clics y la entrega automática **todavía no están disponibles**. La comprobación de conexión solicita un token OAuth; no crea identidades ni envía eventos.
+Incluye un almacén de eventos, mantenimiento mediante Action Scheduler, receptor autenticado y transporte desde el navegador. La captura de vistas, la selección/captura de clics y la entrega automática a Pulse **todavía no están disponibles**. El transporte no genera eventos al cargarlo. La comprobación de conexión solicita un token OAuth; no crea identidades ni envía eventos.
 
 ## Requisitos
 
@@ -34,7 +34,7 @@ Esta versión usa el esquema 4 y conserva cuatro opciones propias:
 
 El token OAuth se conserva temporalmente en el transient `wp_druid_pulse_oauth_token`, ligado a las opciones de conexión y con caducidad. Cambiar los ajustes lo invalida; un token ausente o caducado se obtiene de nuevo cuando se solicita una operación. Los eventos se guardan en `<prefijo>druid_pulse_events`. Action Scheduler utiliza su infraestructura compartida y programa el mantenimiento propio del plugin.
 
-Activación y actualización inicializan únicamente los recursos que faltan en esquemas anteriores y avanzan al esquema 4 después de comprobar la tabla y programar el mantenimiento. Actualizar desde 0.4.0 conserva selección, UUID y conexión; desde 0.3.0 conserva la selección; desde 0.1.0/0.2.0 también se inicializa la selección vacía si falta. Una actualización de un plugin activo se comprueba en `init`, después de inicializar Action Scheduler, sin necesitar una reactivación. No se rebajan esquemas más recientes ni se reinician datos incompatibles.
+Activación y actualización inicializan únicamente los recursos que faltan en esquemas anteriores y avanzan al esquema 4 después de comprobar la tabla y programar el mantenimiento. Actualizar desde 0.5.0 conserva esquema, ajustes, eventos y mantenimiento; desde 0.4.0 conserva selección, UUID y conexión; desde 0.3.0 conserva la selección; desde 0.1.0/0.2.0 también se inicializa la selección vacía si falta. Una actualización de un plugin activo se comprueba en `init`, después de inicializar Action Scheduler, sin necesitar una reactivación. No se rebajan esquemas más recientes ni se reinician datos incompatibles.
 
 - **Desactivar/reactivar:** conserva selección, UUID, credenciales y eventos. Desactivar cancela las tareas propias pendientes; una ejecución ya iniciada puede terminar. Reactivar restablece el mantenimiento. La caducidad continúa durante la desactivación y los vencidos no se recuperan para envío.
 - **Eliminar desde WordPress:** retira la tabla de eventos, las tareas y registros propios, las cuatro opciones y el transient. Conserva las tablas compartidas de Action Scheduler y las tareas de otros componentes. Un fallo de borrado interrumpe la desinstalación y permite reintentarlo.
@@ -60,13 +60,37 @@ El origen toma automáticamente el título del sitio y su URL pública de **Ajus
 
 Los servicios internos de resolución, mapeo y HTTP están separados. El registro de mapeadores permite añadir un tipo en PHP sin cambiar el cliente de transporte. Inicialmente incluye `watch` + `page` y `click` + `link`; en clics, `object.url` es la página de procedencia y el `target` opcional representa el destino conocido.
 
+`EventMapper::register($type, $mapper, $validator = null)` reúne el mapeo y la validación de entrada de cada tipo. El validador recibe el contexto, devuelve un array con los campos permitidos y normalizados o un `WP_Error`; debe rechazar los campos no previstos. Sin validador, el tipo conserva su mapeo interno pero rechaza la recepción de contexto externo. El hook `wp_druid_pulse_register_event_types` recibe la instancia de `EventMapper` al terminar cada construcción, después de registrar los mapeadores incluidos. Permite que recepción y preparación carguen las mismas definiciones; se ejecuta por instancia y no captura ni envía eventos.
+
 Con `wp-druid` activo se consulta su API canónica y se envía únicamente `actor.externalIds["druid:objectid"]`. Si falta esa API o el identificador, se devuelve un error sin recurrir al perfil de WordPress. Sin esa integración se utilizan correo real, nombre y apellidos disponibles; no se añade teléfono ni se utilizan los correos técnicos conocidos como identidad. La falta de identificación devuelve un error, sin sustituir al usuario por su ID numérico de WordPress.
 
-El cliente envía un evento a `POST /identities` y reconoce 200/201. Un 401 invalida el token; no se reenvía automáticamente el evento. Los fallos de transporte o respuestas inesperadas no se presentan como éxito. Estos servicios aún no se conectan a la navegación ni a un trabajador de entrega.
+El cliente envía un evento a `POST /identities` y reconoce 200/201. Un 401 invalida el token; no se reenvía automáticamente el evento. Los fallos de transporte o respuestas inesperadas no se presentan como éxito. Estos servicios aún no se conectan a un trabajador de entrega.
+
+## Recepción desde el navegador
+
+La ruta local `POST /wp-druid-pulse/v1/events`, dentro de la REST API de WordPress, requiere una **cookie de sesión válida y un nonce `wp_rest` en `X-WP-Nonce`**. Admite cualquier rol autenticado. No admite anónimos, autenticación exclusivamente mediante contraseñas de aplicación ni acceso CORS desde otros orígenes. Un `Origin` presente debe coincidir con el de la URL pública del sitio. El ID del usuario se obtiene en servidor, nunca del JSON ni de parámetros de la URL. Las credenciales y tokens de Pulse no llegan al navegador.
+
+El cuerpo debe ser JSON y contener únicamente `type`, `published` y `context`. `type` identifica un tipo registrado con validador de entrada; `published` es la fecha original declarada por el navegador, en UTC y con precisión de segundos (`YYYY-MM-DDTHH:MM:SSZ`); `context` contiene los campos específicos permitidos por ese validador. No se admiten fechas inválidas ni se sustituyen por la fecha de recepción. La retención se calcula desde la aceptación local, independientemente de esa fecha declarada.
+
+Los mapeadores internos de `page_view` y `click` aún no tienen validadores de recepción: **ambos se rechazan por HTTP** hasta incorporar sus reglas de captura. Una extensión PHP puede registrar otro tipo mediante `wp_druid_pulse_register_event_types`, con su mapeador y validador. La aceptación de tipos adicionales no requiere cambiar el receptor ni el transporte.
+
+- Límite: **16 KiB del cuerpo HTTP completo en UTF-8**, comprobado antes de decodificar JSON. Es independiente del máximo interno de 64 KiB por contexto.
+- Éxito: `202` con `{"accepted":true,"event_id":"<UUID local>"}`, solo después de persistir. Confirma aceptación en WordPress, no entrega a Pulse.
+- Errores: `400` por JSON/contrato/tipo/contexto inválido, `401`/`403` por sesión o nonce, `403` por origen ajeno, `413` por tamaño, `415` por contenido no JSON, `503` por cola llena u ocupada y `500` por fallo de almacenamiento. Conservan el formato de error REST de WordPress. Si la inicialización del plugin falla, la ruta no se registra.
+
+El script `wp-druid-pulse-transport` se carga únicamente en el frontend autenticado. Tras su carga, `window.wpDruidPulse.send({ type, published, context })` devuelve una promesa con uno de estos resultados:
+
+- `{ status: 'accepted', eventId }`: confirmación válida de almacenamiento local.
+- `{ status: 'rejected', code, httpStatus? }`: rechazo local o respuesta de error del receptor.
+- `{ status: 'unknown', code, httpStatus? }`: error de red o respuesta que no permite determinar la aceptación. El evento podría haberse guardado.
+
+Usa `fetch` con `keepalive`, cookies y nonce del mismo origen. El llamador no debe esperar la promesa para permitir una navegación. No hay reintentos, `sendBeacon`, almacenamiento del navegador ni cola sin conexión. Los navegadores pueden limitar el total de cuerpos `keepalive` pendientes; no se garantiza entrega al navegar, cerrar la pestaña o perder conexión.
+
+El nonce solo se renueva a partir de una confirmación válida de WordPress. Un rechazo de sesión/nonce pausa nuevos envíos hasta recargar la página; no se recupera otro nonce para reenviar eventos antiguos bajo un nuevo usuario. **Las páginas autenticadas y su configuración deben quedar fuera de cachés compartidas**, y el endpoint responde con `Cache-Control: no-store, private`. Un usuario autenticado puede reproducir peticiones válidas: sesión y nonce no demuestran que una interacción haya ocurrido ni deduplican eventos.
 
 ## Almacén de eventos
 
-El almacén es interno: no existe todavía un endpoint que acepte eventos del navegador. Su llamador debe atribuir el usuario y validar el contexto en servidor. Cada registro contiene UUID local, versión del formato, tipo, fecha original en UTC, fecha de recepción/caducidad, ID WordPress del usuario y contexto específico del evento. Para vistas y clics, ese contexto conserva las referencias, URLs y títulos originales, incluido el destino conocido.
+El receptor valida el contexto y atribuye el usuario antes de llamar al almacén. Los demás llamadores PHP deben cumplir también ese contrato. Cada registro contiene UUID local, versión del formato, tipo, fecha original en UTC, fecha de recepción/caducidad, ID WordPress del usuario y contexto específico del evento. Para vistas y clics, ese contexto conserva las referencias, URLs y títulos originales, incluido el destino conocido.
 
 No se guarda el payload final de Pulse ni una copia del perfil, proveedor o conexión. Al preparar el envío se consulta al usuario por ID, sin necesitar sesión activa, y se reconstruyen el actor y la aplicación con los datos actuales. Un cambio de correo, nombre o modo de integración con `wp-druid` se refleja entonces. Si el usuario desaparece o deja de ser identificable, la preparación devuelve un error sin inventar una identidad. Un formato persistido desconocido también se rechaza.
 
@@ -95,7 +119,9 @@ Este catálogo selecciona únicamente vistas; no determina dónde se podrán sel
 
 ## Verificación
 
-La versión 0.5.0 se ha comprobado en un WordPress 6.9.4/PHP 8.3.31 aislado, con datos sintéticos y prefijo de tablas distinto de `wp_`. Se verificaron actualización activa desde 0.4.0, conservación de ajustes, preparación con usuario y conexión actuales, caducidad, topes reales con cuatro procesos concurrentes, fallos de persistencia/programación/retirada y convivencia con otra copia independiente de Action Scheduler 4.2.0. También se comprobaron los contratos de mapeo, OAuth con HTTP simulado y formularios por HTTP con permisos y nonces.
+La versión 0.6.0 se ha comprobado en un WordPress 6.9.4/PHP 8.3.31/MySQL 8.0 aislado, con datos sintéticos y prefijo distinto de `wp_`. Incluye 85 comprobaciones HTTP del receptor y sus sesiones, 30 del transporte JavaScript, 79 de integración, 45 de cola, 26 de administración y 38 de ciclo de vida. La actualización activa desde 0.5.0 conserva ajustes, esquema, eventos y la tarea de mantenimiento existente.
+
+En Chrome 150 se comprobó, con un receptor HTTP sintético y respuesta retrasada, que cargar el transporte no captura eventos, que llegan cookie/nonce y que la navegación continúa antes de la confirmación. Esto no acredita todos los navegadores, cierres de proceso ni escenarios de red. Los topes reales con cuatro procesos concurrentes y la convivencia con otra copia de Action Scheduler 4.2.0 se verificaron en 0.5.0; esa dependencia y el almacén permanecen sin cambios.
 
 Las suites reproducibles están en [tests/README.md](tests/README.md). Las comprobaciones usan respuestas simuladas y una implementación de prueba de la consulta a `wp-druid`; no acreditan conectividad con un despliegue real de Pulse ni todas las combinaciones de plugins o cachés persistentes.
 
@@ -107,6 +133,6 @@ Repositorio: [dru-id/wp-druid-pulse](https://github.com/dru-id/wp-druid-pulse), 
 
 Mantener los archivos PHP con UTF-8 sin BOM y convenciones de WordPress.
 
-El ZIP 0.5.0 incluye el archivo principal, `src/`, `templates/`, `assets/admin-tracking.js`, `libraries/` con sus licencias, `uninstall.php` y `readme.txt`, bajo `wp-druid-pulse/`.
+El ZIP 0.6.0 incluye el archivo principal, `src/`, `templates/`, `assets/`, `libraries/` con sus licencias, `uninstall.php` y `readme.txt`, bajo `wp-druid-pulse/`.
 
 La cabecera `Update URI: false` evita que WordPress.org sustituya este plugin de desarrollo por otro que tenga el mismo nombre de carpeta. No se ha añadido un servidor ni un mecanismo propio de actualizaciones.

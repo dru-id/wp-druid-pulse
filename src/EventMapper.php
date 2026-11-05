@@ -7,18 +7,29 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 final class EventMapper {
-	private array $mappers;
+	private array $types = array();
 
 	public function __construct() {
-		$this->mappers = array( 'page_view' => array( $this, 'view' ), 'click' => array( $this, 'click' ) );
+		$this->register( 'page_view', array( $this, 'view' ) );
+		$this->register( 'click', array( $this, 'click' ) );
+		do_action( 'wp_druid_pulse_register_event_types', $this );
 	}
 
-	public function register( string $type, callable $mapper ): void {
-		$this->mappers[ $type ] = $mapper;
+	public function register( string $type, callable $mapper, ?callable $validator = null ): void {
+		$this->types[ $type ] = array( 'mapper' => $mapper, 'validator' => $validator );
+	}
+
+	public function validate_context( string $type, array $context ): array|\WP_Error {
+		$validator = $this->types[ $type ]['validator'] ?? null;
+		if ( null === $validator ) {
+			return new \WP_Error( 'wp_druid_pulse_event_type_unavailable', __( 'This event type is not enabled for reception.', 'wp-druid-pulse' ) );
+		}
+		$validated = $validator( $context );
+		return is_array( $validated ) || is_wp_error( $validated ) ? $validated : self::invalid_event();
 	}
 
 	public function map( string $type, array $data, array $actor, \DateTimeImmutable $published ): array|\WP_Error {
-		if ( ! isset( $this->mappers[ $type ] ) ) {
+		if ( ! isset( $this->types[ $type ] ) ) {
 			return new \WP_Error( 'wp_druid_pulse_unknown_event', __( 'No mapper is registered for this event type.', 'wp-druid-pulse' ) );
 		}
 		$application = SiteContext::application();
@@ -31,7 +42,7 @@ final class EventMapper {
 			|| 'person' !== ( $actor['objectType'] ?? null ) ) {
 			return self::invalid_event();
 		}
-		$mapped = ( $this->mappers[ $type ] )( $data, $application['id'] );
+		$mapped = ( $this->types[ $type ]['mapper'] )( $data, $application['id'] );
 		if ( is_wp_error( $mapped ) ) {
 			return $mapped;
 		}

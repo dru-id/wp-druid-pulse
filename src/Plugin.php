@@ -35,6 +35,11 @@ final class Plugin {
 		}
 
 		Scheduler::register_hooks();
+		add_action( 'rest_api_init', array( $this, 'register_receiver' ) );
+		if ( ! is_admin() ) {
+			require_once __DIR__ . '/Frontend.php';
+			add_action( 'wp_enqueue_scripts', array( new Frontend( $this->plugin_file ), 'enqueue' ) );
+		}
 
 		if ( is_admin() ) {
 			require_once __DIR__ . '/ViewCatalog.php';
@@ -43,6 +48,12 @@ final class Plugin {
 			( new Admin\TrackingPage( $this->plugin_file ) )->register_hooks();
 			( new Admin\ConnectionPage() )->register_hooks();
 		}
+	}
+
+	public function register_receiver(): void {
+		require_once __DIR__ . '/EventMapper.php';
+		require_once __DIR__ . '/Rest/EventsController.php';
+		( new Rest\EventsController( new EventMapper(), new EventStore() ) )->register_hooks();
 	}
 
 	public function show_initialization_error(): void {
@@ -68,7 +79,7 @@ final class Plugin {
 		}
 
 		$plugin_meta[] = esc_html__(
-			'Page-view selection and OAuth settings are available under DruID Pulse. The internal event store includes scheduled maintenance. Event capture and scheduled delivery are not available yet.',
+			'Page-view selection and OAuth settings are available under DruID Pulse. Authenticated event reception and browser transport are available. Automatic capture and scheduled delivery are not available yet.',
 			'wp-druid-pulse'
 		);
 

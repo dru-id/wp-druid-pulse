@@ -1,18 +1,19 @@
 === DruID Pulse for WordPress ===
 Requires at least: 6.9
 Requires PHP: 8.3
-Stable tag: 0.5.0
+Stable tag: 0.6.0
 
 Base instalable del plugin independiente de actividad autenticada para DruID Pulse.
 
 == Descripción ==
 
-Versión de desarrollo 0.5.0.
+Versión de desarrollo 0.6.0.
 
 Permite seleccionar y guardar contenidos para páginas vistas desde el menú
 DruID Pulse > Tracking y configurar OAuth2 desde DruID Pulse > Connection.
-Incluye almacén interno de eventos y mantenimiento mediante Action Scheduler.
-La captura de eventos y la entrega automática todavía no están disponibles.
+Incluye almacén de eventos, mantenimiento mediante Action Scheduler, receptor
+autenticado y transporte del navegador. La captura de vistas/clics y la entrega
+automática a Pulse todavía no están disponibles.
 La prueba de conexión solicita un token; no envía eventos ni crea identidades.
 
 No requiere wp-druid ni WooCommerce. Guarda esquema, selección, UUID y conexión
@@ -84,8 +85,30 @@ La inserción rechaza explícitamente saturación, bloqueo ocupado o fallo de BD
 sin expulsar eventos aceptados, incluso bajo concurrencia.
 
 Action Scheduler recibe tareas sin datos personales. El almacén admite más tipos
-mediante mapeadores. Todavía no hay receptor frontend ni trabajador de entrega:
-la retirada tras aceptación de Pulse y los reintentos se conectarán con él.
+mediante mapeadores. Todavía no hay trabajador de entrega: la retirada tras
+aceptación de Pulse y los reintentos se conectarán con él.
+
+== Recepción autenticada ==
+
+La ruta REST local POST /wp-druid-pulse/v1/events exige cookie de sesión válida y
+nonce wp_rest en X-WP-Nonce. Acepta todos los roles autenticados, obtiene el usuario
+en servidor y no admite contraseñas de aplicación ni CORS entre orígenes.
+Recibe únicamente type, published (UTC, YYYY-MM-DDTHH:MM:SSZ) y context, con un
+máximo de 16 KiB por cuerpo JSON. Cada tipo necesita un validador registrado.
+page_view y click siguen deshabilitados para recepción hasta incorporar su captura.
+
+202 confirma almacenamiento local con un UUID; no confirma entrega a Pulse.
+Los errores de validación, sesión, tamaño, capacidad o BD no se presentan como éxito.
+La API window.wpDruidPulse.send(event) se carga en el frontend autenticado, sin
+generar eventos. Devuelve accepted, rejected o unknown si no puede determinar
+el resultado. Usa fetch con keepalive, sin esperar para navegar ni garantizar
+entrega al cerrar la página. No hay reintentos ni almacenamiento sin conexión.
+
+Un rechazo de sesión/nonce pausa el transporte hasta recargar. No se reutilizan
+eventos antiguos con un nonce de otro usuario. Excluir las páginas autenticadas
+de cachés compartidas; la respuesta del receptor es privada y no almacenable.
+Estas protecciones no demuestran que una interacción haya ocurrido ni impiden
+que un usuario autenticado reproduzca sus peticiones válidas.
 
 == Desactivación y eliminación ==
 
@@ -112,6 +135,7 @@ la selección vacía si no existe. La actualización a 0.5.0 añade la tabla y e
 mantenimiento y solo avanza al esquema 4 tras comprobarlos. Conserva selección,
 UUID y conexión existentes. Los errores de lectura o guardado se muestran sin
 reiniciar los datos.
+La versión 0.6.0 conserva el esquema 4, los ajustes, eventos y mantenimiento.
 
 Si la inicialización falla, la activación se interrumpe. Si el plugin ya estaba
 activo, conserva los datos y deja sus funciones en pausa; los usuarios con
@@ -121,6 +145,14 @@ reciente o desconocido: hay que restaurar una versión compatible o revisar los
 metadatos de instalación.
 
 == Registro de cambios ==
+
+= 0.6.0 =
+
+* Receptor común con sesión WordPress, nonce y atribución en servidor.
+* Tipos ampliables con mapeador y validador; límite HTTP de 16 KiB.
+* Aceptación local confirmada después de guardar; errores explícitos.
+* Transporte asíncrono con keepalive y pausa al invalidarse la sesión.
+* Sin captura automática de vistas/clics ni entrega automática a Pulse.
 
 = 0.5.0 =
 

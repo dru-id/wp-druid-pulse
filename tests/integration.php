@@ -111,6 +111,35 @@ try {
 	$mapper->register( 'extra_test_type', static fn( $data, $app ) => array( 'verb' => 'share', 'object' => array( 'objectType' => 'article', 'url' => $data['page']['url'] ) ) );
 	$extra = $mapper->map( 'extra_test_type', $data, $actor, $time );
 	check( 'share' === $extra['verb'] && $extra['origin'] === $view['origin'], 'An additional event required changes to the common mapper.' );
+	foreach ( array( 'page_view', 'click', 'extra_test_type', 'unknown' ) as $type ) {
+		check( error_is( $mapper->validate_context( $type, $data ), 'wp_druid_pulse_event_type_unavailable' ), 'An event without a receiver validator was enabled.' );
+	}
+	$register_type = static function ( EventMapper $registry ) {
+		$registry->register(
+			'receiver_test',
+			static fn( $context, $app ) => array( 'verb' => 'share', 'object' => array( 'objectType' => 'article', 'url' => $context['page']['url'] ) ),
+			static function ( array $context ) {
+				if ( array_diff( array_keys( $context ), array( 'page', 'label' ) ) || ! isset( $context['page'] ) || ! is_string( $context['label'] ?? null ) ) {
+					return new WP_Error( 'fixture_context_invalid', 'Invalid test context.' );
+				}
+				$context['label'] = sanitize_text_field( $context['label'] );
+				return $context;
+			}
+		);
+	};
+	add_action( 'wp_druid_pulse_register_event_types', $register_type );
+	$receiving_mapper = new EventMapper();
+	$preparing_mapper = new EventMapper();
+	remove_action( 'wp_druid_pulse_register_event_types', $register_type );
+	$context = array( 'page' => $data['page'], 'label' => '<b>Shared</b>' );
+	$validated = $receiving_mapper->validate_context( 'receiver_test', $context );
+	check( $validated === array( 'page' => $data['page'], 'label' => 'Shared' ), 'The registered input validator was not applied.' );
+	check( error_is( $receiving_mapper->validate_context( 'receiver_test', array_merge( $context, array( 'actor' => array() ) ) ), 'fixture_context_invalid' ), 'A validator rejection was hidden.' );
+	check( 'share' === $preparing_mapper->map( 'receiver_test', $validated, $actor, $time )['verb'], 'Reception and preparation could not use the same type registration.' );
+	$receiving_mapper->register( 'broken_validator', static fn() => array(), static fn() => true );
+	check( error_is( $receiving_mapper->validate_context( 'broken_validator', array() ), 'wp_druid_pulse_invalid_event' ), 'A broken validator was treated as valid context.' );
+	$receiving_mapper->register( 'receiver_test', static fn() => array() );
+	check( error_is( $receiving_mapper->validate_context( 'receiver_test', $context ), 'wp_druid_pulse_event_type_unavailable' ), 'Replacing a definition retained its previous receiver policy.' );
 	$old_name = get_option( 'blogname' );
 	$old_home = get_option( 'home' );
 	update_option( 'blogname', 'Renamed shop' );
