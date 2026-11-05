@@ -1,6 +1,9 @@
 (function () {
 	'use strict';
 
+	if (window.wpDruidPulse && typeof window.wpDruidPulse.send === 'function') {
+		return;
+	}
 	const settings = window.wpDruidPulseSettings || {};
 	let nonce = settings.nonce;
 	let paused = false;

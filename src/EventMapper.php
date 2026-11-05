@@ -6,11 +6,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once __DIR__ . '/PageViews.php';
+
 final class EventMapper {
 	private array $types = array();
 
 	public function __construct() {
-		$this->register( 'page_view', array( $this, 'view' ) );
+		$this->register( 'page_view', array( $this, 'view' ), array( PageViews::class, 'validate_context' ) );
 		$this->register( 'click', array( $this, 'click' ) );
 		do_action( 'wp_druid_pulse_register_event_types', $this );
 	}

@@ -19,7 +19,15 @@ final class Frontend {
 			'nonce' => wp_create_nonce( 'wp_rest' ),
 			'maxBytes' => Rest\EventsController::MAX_BODY_BYTES,
 		);
-		wp_enqueue_script( 'wp-druid-pulse-transport', plugins_url( 'assets/frontend-transport.js', $this->plugin_file ), array(), '0.6.0', array( 'in_footer' => true, 'strategy' => 'defer' ) );
+		wp_enqueue_script( 'wp-druid-pulse-transport', plugins_url( 'assets/frontend-transport.js', $this->plugin_file ), array(), '0.7.0', array( 'in_footer' => true, 'strategy' => 'defer' ) );
 		wp_add_inline_script( 'wp-druid-pulse-transport', 'window.wpDruidPulseSettings = ' . wp_json_encode( $settings, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT ) . ';', 'before' );
+		require_once __DIR__ . '/PageViews.php';
+		$context = PageViews::current_context();
+		if ( null === $context ) {
+			return;
+		}
+		wp_enqueue_script( 'druid-tracker', plugins_url( 'assets/tracker.js', $this->plugin_file ), array(), '0.1.0', array( 'in_footer' => true, 'strategy' => 'defer' ) );
+		wp_enqueue_script( 'wp-druid-pulse-views', plugins_url( 'assets/frontend-views.js', $this->plugin_file ), array( 'druid-tracker', 'wp-druid-pulse-transport' ), '0.7.0', array( 'in_footer' => true, 'strategy' => 'defer' ) );
+		wp_add_inline_script( 'wp-druid-pulse-views', 'window.wpDruidPulseView = ' . wp_json_encode( $context, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT ) . ';', 'before' );
 	}
 }

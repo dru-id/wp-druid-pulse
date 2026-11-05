@@ -111,7 +111,8 @@ try {
 	$mapper->register( 'extra_test_type', static fn( $data, $app ) => array( 'verb' => 'share', 'object' => array( 'objectType' => 'article', 'url' => $data['page']['url'] ) ) );
 	$extra = $mapper->map( 'extra_test_type', $data, $actor, $time );
 	check( 'share' === $extra['verb'] && $extra['origin'] === $view['origin'], 'An additional event required changes to the common mapper.' );
-	foreach ( array( 'page_view', 'click', 'extra_test_type', 'unknown' ) as $type ) {
+	check( error_is( $mapper->validate_context( 'page_view', $data ), 'wp_druid_pulse_view_context' ), 'A page view accepted client-provided URL/title instead of a reference.' );
+	foreach ( array( 'click', 'extra_test_type', 'unknown' ) as $type ) {
 		check( error_is( $mapper->validate_context( $type, $data ), 'wp_druid_pulse_event_type_unavailable' ), 'An event without a receiver validator was enabled.' );
 	}
 	$register_type = static function ( EventMapper $registry ) {

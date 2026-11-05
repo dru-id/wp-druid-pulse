@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>DruID Tracker — independent example</title>
+<h1>DruID Tracker without WordPress</h1>
+<p>This example receives events in this page. It makes no event requests and stores no identity.</p>
+<p>Reload, navigate to <a href="?page=second">another document</a>, or go back to observe page views. Switching tabs does not create another view.</p>
+<button id="start">Start</button>
+<button id="stop">Stop</button>
+<button id="custom">Emit a custom event</button>
+<pre id="events" aria-live="polite"></pre>
+<script src="../assets/tracker.js"></script>
+<script>
+	const output = document.getElementById('events');
+	const tracker = DruidTracker.create({
+		id: 'independent-example',
+		getContext: () => ({ page: { name: new URLSearchParams(location.search).get('page') === 'second' ? 'second' : 'first' } }),
+		emit: event => { output.textContent += JSON.stringify(event) + '\n'; },
+		onError: error => { output.textContent += 'Capture error: ' + error.code + '\n'; }
+	});
+	document.getElementById('start').addEventListener('click', () => tracker.start());
+	document.getElementById('stop').addEventListener('click', () => tracker.stop());
+	document.getElementById('custom').addEventListener('click', () => tracker.track('example_action', { source: 'example' }).catch(error => { output.textContent += error.code + '\n'; }));
+	tracker.start();
+</script>
+</html>

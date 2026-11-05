@@ -46,14 +46,19 @@ Crear también una página publicada titulada `Selected before upgrade`, usada p
 WP_TEST_BOOTSTRAP=/ruta/wordpress/wp-load.php WP_TEST_CREDENTIALS=/ruta/credenciales-de-prueba.json php tests/admin-http.php
 ```
 
-Para el receptor, copiar además `fixtures/receiver.php` al directorio de MU plugins y ejecutar:
+Para el receptor, copiar además `fixtures/receiver.php` y `fixtures/views.php` al directorio de MU plugins y ejecutar:
 
 ```sh
 WP_TEST_BOOTSTRAP=/ruta/wordpress/wp-load.php WP_TEST_CREDENTIALS=/ruta/credenciales-de-prueba.json php tests/receiver-http.php
 node tests/frontend-transport.cjs
+node tests/tracker.cjs
 ```
 
-`receiver-http.php` usa sesiones HTTP reales de administrador y suscriptor, extrae el nonce del frontend y recorre REST → almacén → preparación para un tipo sintético. Comprueba identidad en servidor, cambios/caducidad de sesión, rechazo de contraseñas de aplicación, CORS limitado a esta ruta, campos/tipos/fechas/tamaños inválidos, error de escritura, saturación simulada y bloqueo real de la cola. Comprueba también que frontend anónimo y administración no cargan el transporte y que cargar una página no genera eventos. La fixture registra únicamente tipos de prueba, habilita contraseñas de aplicación en el entorno local e inyecta errores controlados de SQL; no usarla fuera de la instalación desechable. La suite retira sus eventos, contraseña de aplicación y archivos de cookies al terminar.
+`receiver-http.php` usa sesiones HTTP reales de administrador y suscriptor, extrae el nonce del frontend y recorre REST → almacén → preparación para un tipo sintético. Comprueba identidad en servidor, cambios/caducidad de sesión, rechazo de contraseñas de aplicación, CORS limitado a esta ruta, campos/tipos/fechas/tamaños inválidos, error de escritura, saturación simulada y bloqueo real de la cola. Comprueba también que frontend anónimo y administración no cargan el transporte y que una petición HTML sin ejecutar JavaScript no genera eventos. La fixture registra únicamente tipos de prueba, habilita contraseñas de aplicación en el entorno local e inyecta errores controlados de SQL; no usarla fuera de la instalación desechable. La suite retira sus eventos, contraseña de aplicación y archivos de cookies al terminar.
+
+La misma suite ejecuta `page-views-http.php` para comprobar selección vacía/activa, portada/blog y su paginación, tipos públicos, exclusiones, contraseña nativa, enlaces simples y permanentes, campos manipulados y cambios antes/después de recepción. La fixture de vistas registra tipos de contenido sintéticos y permite una respuesta HTTP 503 de prueba. Crea y elimina sus contenidos y eventos y restaura las opciones originales.
+
+`tracker.cjs` ejecuta el SDK y el adaptador con módulos nativos de Node.js y superficies de navegador simuladas. Comprueba visibilidad/preparación, historial, prerender, inicio/parada, carga repetida, eventos adicionales, errores y conservación de la pausa de sesión. Abrir `examples/tracker.html` permite comprobar el consumidor independiente en un navegador real, sin PHP. Verificar además una pestaña abierta en segundo plano, cambios de pestaña, recarga y retorno real desde BFCache; una notificación simulada no demuestra que el navegador haya restaurado su caché. Para WordPress, verificar el recorrido completo hasta la fila persistida con sesiones de administrador/suscriptor.
 
 `frontend-transport.cjs` usa únicamente módulos nativos de Node.js, sin npm ni framework. Comprueba la petición, límites UTF-8, confirmaciones, resultados ambiguos, ausencia de reintentos, pausa de sesión y respuestas concurrentes. El entorno JavaScript simulado no demuestra comportamiento real al navegar: comprobar también con un navegador que una navegación prosigue mientras queda pendiente una respuesta y que el receptor recibe la petición con cookie/nonce. La pérdida de conexión o el cierre del navegador siguen pudiendo perder eventos; `keepalive` no garantiza entrega.
 

@@ -62,7 +62,10 @@ final class EventsController {
 		}
 		$context = $this->types->validate_context( $input['type'], $input['context'] );
 		if ( is_wp_error( $context ) ) {
-			return new \WP_Error( $context->get_error_code(), $context->get_error_message(), array( 'status' => 400 ) );
+			$data = $context->get_error_data();
+			$status = is_array( $data ) ? ( $data['status'] ?? 400 ) : 400;
+			$status = is_int( $status ) && $status >= 400 && $status <= 599 ? $status : 400;
+			return new \WP_Error( $context->get_error_code(), $context->get_error_message(), array( 'status' => $status ) );
 		}
 		$id = $this->store->append( $input['type'], get_current_user_id(), $context, $published );
 		if ( is_wp_error( $id ) ) {

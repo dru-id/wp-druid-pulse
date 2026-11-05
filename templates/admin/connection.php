@@ -6,7 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 ?>
 <div class="wrap">
 	<h1><?php esc_html_e( 'DruID Pulse — Connection', 'wp-druid-pulse' ); ?></h1>
-	<p><?php esc_html_e( 'Configure access to Pulse and test OAuth authentication. Event capture and scheduled delivery are not available in this version.', 'wp-druid-pulse' ); ?></p>
+	<p><?php esc_html_e( 'Configure access to Pulse and test OAuth authentication. Selected page views are stored locally; scheduled delivery to Pulse is not available in this version.', 'wp-druid-pulse' ); ?></p>
 	<?php if ( '1' === ( $_GET['saved'] ?? null ) ) : ?>
 		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Connection settings saved.', 'wp-druid-pulse' ); ?></p></div>
 	<?php endif; ?>

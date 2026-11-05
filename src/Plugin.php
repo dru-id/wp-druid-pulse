@@ -79,7 +79,7 @@ final class Plugin {
 		}
 
 		$plugin_meta[] = esc_html__(
-			'Page-view selection and OAuth settings are available under DruID Pulse. Authenticated event reception and browser transport are available. Automatic capture and scheduled delivery are not available yet.',
+			'Selected page views are captured for signed-in visitors. Configure selection and OAuth under DruID Pulse. Click capture and scheduled delivery to Pulse are not available yet.',
 			'wp-druid-pulse'
 		);
 

@@ -1,19 +1,20 @@
 === DruID Pulse for WordPress ===
 Requires at least: 6.9
 Requires PHP: 8.3
-Stable tag: 0.6.0
+Stable tag: 0.7.0
 
 Base instalable del plugin independiente de actividad autenticada para DruID Pulse.
 
 == Descripción ==
 
-Versión de desarrollo 0.6.0.
+Versión de desarrollo 0.7.0.
 
 Permite seleccionar y guardar contenidos para páginas vistas desde el menú
 DruID Pulse > Tracking y configurar OAuth2 desde DruID Pulse > Connection.
 Incluye almacén de eventos, mantenimiento mediante Action Scheduler, receptor
-autenticado y transporte del navegador. La captura de vistas/clics y la entrega
-automática a Pulse todavía no están disponibles.
+autenticado y un SDK JavaScript independiente con adaptador WordPress para vistas.
+Captura contenido seleccionado para visitantes autenticados. La captura de clics
+y la entrega automática a Pulse todavía no están disponibles.
 La prueba de conexión solicita un token; no envía eventos ni crea identidades.
 
 No requiere wp-druid ni WooCommerce. Guarda esquema, selección, UUID y conexión
@@ -52,6 +53,27 @@ mismo ID. Cambiar la portada no selecciona automáticamente otra página.
 Configurar y guardar requiere manage_options y un nonce válido. La selección
 de clics es independiente del catálogo de vistas y todavía no está disponible.
 
+== Captura de vistas ==
+
+Guardar la selección habilita vistas en las siguientes cargas del contenido para
+usuarios autenticados de cualquier rol. Se captura una vez con HTML preparado y
+página visible. Recarga y retorno por historial cuentan de nuevo; cambiar de
+pestaña no. Sin JavaScript no se captura. Se excluyen previsualizaciones,
+Personalizador, embeds, errores y pantallas con contraseña nativa pendiente.
+No se observan cambios SPA/AJAX automáticamente.
+
+WordPress fija título y URL al recibir la referencia. Usa el enlace permanente
+base, conserva parámetros estructurales y no copia campañas/filtros/fragmentos de
+navegación. La paginación cuenta otra vista del mismo contenido. Los cambios
+posteriores no modifican eventos aceptados. El SDK genérico no impone esta política.
+
+assets/tracker.js expone DruidTracker.create con id, getContext, emit y onError.
+Sus instancias ofrecen start, stop y track(type, context). Contexto y consumidor
+son configurables; admite tipos adicionales sin depender de WordPress o HTTP.
+Inicio/parada e inicialización repetidos no duplican listeners ni vistas. El mismo
+id conserva configuración y estado durante el documento. Stop no cancela envíos
+ya invocados. El README del repositorio documenta el contrato y su ejemplo sin PHP.
+
 == Conexión y origen ==
 
 Connection permite guardar las URLs HTTPS de Pulse y del servidor de autorización,
@@ -64,8 +86,8 @@ explícita. Las peticiones no siguen redirecciones con las credenciales.
 
 El origen usa el título y la URL pública de WordPress. Su UUID persiste al cambiar
 nombre o dominio; una copia destinada a otra web necesita un UUID diferente.
-Los mapeadores y el cliente están preparados en código; todavía no capturan
-actividad ni se ejecutan automáticamente desde el frontend.
+El cliente de Pulse está preparado en código; todavía no hay trabajador de entrega.
+Las vistas se guardan localmente hasta su caducidad de 7 días.
 
 == Almacén y mantenimiento ==
 
@@ -95,7 +117,9 @@ nonce wp_rest en X-WP-Nonce. Acepta todos los roles autenticados, obtiene el usu
 en servidor y no admite contraseñas de aplicación ni CORS entre orígenes.
 Recibe únicamente type, published (UTC, YYYY-MM-DDTHH:MM:SSZ) y context, con un
 máximo de 16 KiB por cuerpo JSON. Cada tipo necesita un validador registrado.
-page_view y click siguen deshabilitados para recepción hasta incorporar su captura.
+page_view recibe únicamente context.page.key (post:ID o home:posts). WordPress
+revalida selección, publicación y acceso nativo, y resuelve título/URL al recibir.
+click sigue deshabilitado para recepción hasta incorporar su captura.
 
 202 confirma almacenamiento local con un UUID; no confirma entrega a Pulse.
 Los errores de validación, sesión, tamaño, capacidad o BD no se presentan como éxito.
@@ -135,7 +159,8 @@ la selección vacía si no existe. La actualización a 0.5.0 añade la tabla y e
 mantenimiento y solo avanza al esquema 4 tras comprobarlos. Conserva selección,
 UUID y conexión existentes. Los errores de lectura o guardado se muestran sin
 reiniciar los datos.
-La versión 0.6.0 conserva el esquema 4, los ajustes, eventos y mantenimiento.
+La versión 0.7.0 conserva el esquema 4, los ajustes, eventos y mantenimiento
+al actualizar desde 0.5.0/0.6.0.
 
 Si la inicialización falla, la activación se interrumpe. Si el plugin ya estaba
 activo, conserva los datos y deja sus funciones en pausa; los usuarios con
@@ -145,6 +170,14 @@ reciente o desconocido: hay que restaurar una versión compatible o revisar los
 metadatos de instalación.
 
 == Registro de cambios ==
+
+= 0.7.0 =
+
+* SDK JavaScript genérico con contexto y consumidor configurables, sin dependencias.
+* Vistas al estar preparado y visible; recarga e historial cuentan de nuevo.
+* Adaptador WordPress y recepción de referencias con título/URL fijados en servidor.
+* Revalidación de selección y acceso; eventos aceptados conservan su contexto.
+* Esquema 4 conservado; clics y entrega automática a Pulse aún pendientes.
 
 = 0.6.0 =
 

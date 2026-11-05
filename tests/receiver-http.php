@@ -74,7 +74,7 @@ function browser_login( int $index ): array {
 	) ), array( 'Content-Type: application/x-www-form-urlencoded' ) );
 	verify_receiver( 302 === $login['status'], 'The test user could not log in.' );
 	$front = receiver_request( $base . '/', $jars[ $index ] );
-	verify_receiver( 200 === $front['status'] && str_contains( $front['body'], 'assets/frontend-transport.js?ver=0.6.0' ), 'Authenticated frontend did not load the transport.' );
+	verify_receiver( 200 === $front['status'] && str_contains( $front['body'], 'assets/frontend-transport.js?ver=0.7.0' ), 'Authenticated frontend did not load the transport.' );
 	verify_receiver( 1 === preg_match( '/window\.wpDruidPulseSettings = (\{[^\n]+\});/', $front['body'], $match ), 'Session-specific settings were not found.' );
 	$settings = json_decode( $match[1], true );
 	verify_receiver( array( 'endpoint', 'nonce', 'maxBytes' ) === array_keys( $settings ) && 16384 === $settings['maxBytes'], 'Unexpected browser settings or exposed configuration.' );
@@ -114,7 +114,7 @@ try {
 	$admin = receiver_request( $base . '/wp-admin/', $jars[0] );
 	verify_receiver( ! str_contains( $anonymous['body'], 'wpDruidPulseSettings' ) && ! str_contains( $anonymous['body'], 'frontend-transport.js' ), 'Anonymous frontend exposed transport settings.' );
 	verify_receiver( 200 === $admin['status'] && ! str_contains( $admin['body'], 'frontend-transport.js' ) && ! str_contains( $admin['body'], 'wpDruidPulseSettings' ), 'Transport was loaded in administration.' );
-	verify_receiver( $before === queue_count(), 'Loading pages captured events before the capture phase.' );
+	verify_receiver( $before === queue_count(), 'Requests without JavaScript unexpectedly captured events.' );
 
 	$store = new EventStore();
 	foreach ( array( $headers, $subscriber_headers ) as $i => $auth ) {
@@ -159,7 +159,8 @@ try {
 	foreach ( array( 'user_id' => $users[1]->ID, 'actor' => array( 'objectType' => 'person' ), 'connection' => array(), 'extra' => true ) as $key => $value ) {
 		rejected_request( wp_json_encode( $event + array( $key => $value ) ), $jars[0], $headers, 400, 'wp_druid_pulse_request_invalid' );
 	}
-	foreach ( array( 'page_view', 'click', 'fixture_disabled', 'unknown' ) as $type ) {
+	rejected_request( wp_json_encode( array_replace( $event, array( 'type' => 'page_view' ) ) ), $jars[0], $headers, 400, 'wp_druid_pulse_view_context' );
+	foreach ( array( 'click', 'fixture_disabled', 'unknown' ) as $type ) {
 		rejected_request( wp_json_encode( array_replace( $event, array( 'type' => $type ) ) ), $jars[0], $headers, 400, 'wp_druid_pulse_event_type_unavailable' );
 	}
 	foreach ( array( '', 'Bad type', array( 'fixture_activity' ) ) as $type ) {
@@ -191,6 +192,8 @@ try {
 	$wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock ) );
 	verify_receiver( 202 === receiver_request( $endpoint, $jars[0], 'POST', $body, $headers )['status'], 'Storage did not recover after the controlled failures.' );
 
+	$views = require __DIR__ . '/page-views-http.php';
+	$views( $jars[1], $subscriber_headers, (int) $users[1]->ID );
 	$application_password = WP_Application_Passwords::create_new_application_password( $users[1]->ID, array( 'name' => 'Pulse receiver isolated test' ) );
 	verify_receiver( ! is_wp_error( $application_password ), 'Could not create the synthetic application password.' );
 	$basic = $credentials['subscriber_user'] . ':' . $application_password[0];
