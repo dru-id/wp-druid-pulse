@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: DruID Pulse for WordPress
- * Description: Independent DruID Pulse integration with page-view selection and OAuth connection settings. Event capture and scheduled delivery are not available yet.
- * Version: 0.4.0
+ * Description: Independent DruID Pulse integration with page-view selection, OAuth settings and an internal event store. Event capture and scheduled delivery are not available yet.
+ * Version: 0.5.0
  * Requires at least: 6.9
  * Requires PHP: 8.3
  * Author: Genetsis
@@ -14,13 +14,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once __DIR__ . '/libraries/action-scheduler/action-scheduler.php';
 require_once __DIR__ . '/src/ViewSelection.php';
 require_once __DIR__ . '/src/ConnectionSettings.php';
 require_once __DIR__ . '/src/SiteContext.php';
+require_once __DIR__ . '/src/EventStore.php';
+require_once __DIR__ . '/src/Scheduler.php';
 require_once __DIR__ . '/src/Lifecycle.php';
 require_once __DIR__ . '/src/Plugin.php';
 
 register_activation_hook( __FILE__, array( \WP_Druid_Pulse\Lifecycle::class, 'activate' ) );
+register_deactivation_hook( __FILE__, array( \WP_Druid_Pulse\Lifecycle::class, 'deactivate' ) );
 
 add_action(
 	'plugins_loaded',

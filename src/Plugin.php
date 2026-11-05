@@ -15,7 +15,7 @@ final class Plugin {
 	}
 
 	public function register_hooks(): void {
-		add_action( 'init', array( $this, 'initialize' ), 0 );
+		add_action( 'init', array( $this, 'initialize' ), 2 );
 
 		if ( ! is_admin() ) {
 			return;
@@ -33,6 +33,8 @@ final class Plugin {
 			}
 			return;
 		}
+
+		Scheduler::register_hooks();
 
 		if ( is_admin() ) {
 			require_once __DIR__ . '/ViewCatalog.php';
@@ -66,7 +68,7 @@ final class Plugin {
 		}
 
 		$plugin_meta[] = esc_html__(
-			'Page-view selection and OAuth connection settings are available under DruID Pulse. Event capture and scheduled delivery are not available yet.',
+			'Page-view selection and OAuth settings are available under DruID Pulse. The internal event store includes scheduled maintenance. Event capture and scheduled delivery are not available yet.',
 			'wp-druid-pulse'
 		);
 

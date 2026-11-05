@@ -5,6 +5,7 @@ if ( ! defined( 'WP_DRUID_PULSE_TESTING' ) || true !== WP_DRUID_PULSE_TESTING ) 
 }
 
 add_filter( 'pre_wp_mail', '__return_true' );
+add_filter( 'action_scheduler_allow_async_request_runner', '__return_false' );
 add_filter( 'pre_http_request', static function ( $pre, $args, $url ) {
 	if ( 'https://auth.example/oauth2/token' !== $url ) {
 		return new WP_Error( 'test_network_disabled', 'No external requests are allowed in this fixture.' );
