@@ -4,9 +4,9 @@ Plugin independiente para enviar a DruID Pulse actividad de consumidores autenti
 
 ## Estado
 
-Versión de desarrollo **0.3.0**. Permite configurar y guardar la selección de contenidos para páginas vistas desde **DruID Pulse → Tracking**.
+Versión de desarrollo **0.4.0**. Permite seleccionar contenidos para páginas vistas desde **DruID Pulse → Tracking** y configurar/probar la autenticación OAuth2 desde **DruID Pulse → Connection**.
 
-La captura de eventos, la selección de clics y el envío a Pulse **todavía no están disponibles**.
+La captura de eventos, la selección de clics y la entrega mediante cola **todavía no están disponibles**. La comprobación de conexión solicita un token OAuth; no crea identidades ni envía eventos.
 
 ## Requisitos
 
@@ -25,15 +25,44 @@ Si se dispone de un ZIP instalable, se puede subir desde **Plugins → Añadir n
 
 ## Ciclo de vida y datos propios
 
-Esta versión guarda `wp_druid_pulse_schema_version=2` y `wp_druid_pulse_view_selection` mediante Options API. El esquema se carga automáticamente; la selección no utiliza autoload. No crea tablas ni tareas y no envía peticiones a Pulse. La versión del esquema es independiente de la versión del paquete.
+Esta versión usa el esquema 3 y cuatro opciones propias:
 
-La activación inicializa el esquema y comprueba el resultado. La carga normal lo comprueba en `init`, también cuando se actualiza un plugin activo sin ejecutar otra activación. Al actualizar desde 0.1.0 o 0.2.0, crea una selección vacía si no existe y avanza al esquema 2 después de comprobarla; no reinicia una selección existente. Cargar o reactivar un esquema válido no vuelve a escribirlo.
+- `wp_druid_pulse_schema_version`: versión del esquema, con autoload.
+- `wp_druid_pulse_view_selection`: selección de vistas, sin autoload.
+- `wp_druid_pulse_installation_id`: UUID persistente, sin autoload.
+- `wp_druid_pulse_connection`: conexión y secreto, sin autoload.
 
-- **Desactivar/reactivar:** conserva los datos propios, sin reiniciarlos.
-- **Eliminar desde WordPress:** `uninstall.php` borra únicamente ambas claves propias. Si un borrado falla, interrumpe la eliminación; un reintento limpia los datos restantes. Reinstalar comienza con datos nuevos.
-- **Borrar archivos manualmente:** no ejecuta la desinstalación ni elimina las opciones.
+El token OAuth se conserva temporalmente en el transient `wp_druid_pulse_oauth_token`, ligado a las opciones de conexión y con caducidad. Cambiar los ajustes lo invalida; un token ausente o caducado se obtiene de nuevo cuando se solicita una operación. No se crean tablas ni tareas.
 
-Una inicialización fallida impide completar la activación. Si el plugin ya estaba activo, conserva sus datos, mantiene sus funciones en pausa y muestra un aviso a usuarios con capacidad `activate_plugins`; vuelve a comprobarlo en peticiones posteriores. Un esquema más reciente o desconocido se conserva sin rebajarlo ni reiniciarlo: requiere restaurar una versión compatible o revisar los metadatos. Los errores de lectura o guardado de la selección se muestran sin reiniciarla. Los avisos no muestran datos internos.
+Activación y actualización inicializan únicamente los recursos que faltan en esquemas anteriores y avanzan al esquema 3 después de comprobarlos. Actualizar desde 0.3.0 conserva la selección; desde 0.1.0/0.2.0 también se inicializa la selección vacía si falta. Una actualización de un plugin activo se comprueba en `init`, sin necesitar una reactivación. No se rebajan esquemas más recientes ni se reinician datos incompatibles.
+
+- **Desactivar/reactivar:** conserva selección, UUID y credenciales.
+- **Eliminar desde WordPress:** borra únicamente las cuatro opciones y el transient propio. Un fallo de borrado interrumpe la desinstalación y permite reintentarlo.
+- **Reinstalar tras eliminar:** comienza con configuración vacía y otro UUID.
+- **Borrar archivos manualmente:** no ejecuta esta limpieza.
+
+Un fallo de inicialización impide completar la activación. Si ocurre al actualizar un plugin activo, sus funciones se pausan y se muestra un aviso a usuarios con capacidad `activate_plugins`; se reintenta en peticiones posteriores. Los errores de configuración no muestran secretos ni respuestas del servidor.
+
+## Configurar la conexión
+
+En **DruID Pulse → Connection**, con `manage_options`:
+
+1. Introducir la URL HTTPS base de la API de Pulse, sin `/identities`, y la del servidor de autorización, sin `/oauth2/token`.
+2. Indicar el cliente OAuth y su secreto. Elegir `client_secret_basic` o `client_secret_post` según el registro del cliente. Se utiliza `client_credentials`.
+3. Indicar scopes solo cuando corresponda al cliente; si quedan vacíos no se envía ese parámetro. El tenant es opcional y se envía como `X-Tenant` cuando el destino lo requiere.
+4. Guardar y pulsar **Test OAuth authentication**. Se comprueba la autenticación con los ajustes guardados; un resultado correcto no acredita entrega de eventos a Pulse.
+
+Los formularios comprueban capacidad, método POST y nonce. El secreto se guarda **sin cifrar en la base de datos y sus copias**; no se devuelve en el HTML. Dejarlo vacío conserva el existente; para borrarlo, marcar **Remove saved secret** y dejar el campo vacío. Las peticiones usan la HTTP API segura de WordPress, HTTPS y verificación TLS; no siguen redirecciones con las credenciales.
+
+El origen toma automáticamente el título del sitio y su URL pública de **Ajustes → Generales**. El UUID se mantiene al cambiar nombre o dominio. Al clonar la base de datos para otra web independiente, es necesario asignar a `wp_druid_pulse_installation_id` un nuevo UUID antes de habilitar seguimiento; una migración del mismo sitio conserva el UUID. Esta versión no detecta automáticamente si una copia es un clon o una migración.
+
+## Preparación del envío
+
+Los servicios internos de resolución, mapeo y HTTP están separados. El registro de mapeadores permite añadir un tipo en PHP sin cambiar el cliente de transporte. Inicialmente incluye `watch` + `page` y `click` + `link`; en clics, `object.url` es la página de procedencia y el `target` opcional representa el destino conocido.
+
+Con `wp-druid` activo se consulta su API canónica y se envía únicamente `actor.externalIds["druid:objectid"]`. Si falta esa API o el identificador, se devuelve un error sin recurrir al perfil de WordPress. Sin esa integración se utilizan correo real, nombre y apellidos disponibles; no se añade teléfono ni se utilizan los correos técnicos conocidos como identidad. La falta de identificación devuelve un error, sin sustituir al usuario por su ID numérico de WordPress.
+
+El cliente envía un evento a `POST /identities` y reconoce 200/201. Un 401 invalida el token; no se reenvía automáticamente el evento. Los fallos de transporte o respuestas inesperadas no se presentan como éxito. Estos servicios aún no se conectan a la navegación ni a un trabajador de entrega.
 
 ## Configurar vistas
 
@@ -49,17 +78,11 @@ Este catálogo selecciona únicamente vistas; no determina dónde se podrán sel
 
 ## Verificación
 
-La versión 0.3.0 se validó en WordPress 6.9.4, PHP 8.3.31 y MySQL 8.0.46 con datos sintéticos y un prefijo de tablas distinto de `wp_`. Se comprobaron la instalación del ZIP, actualización activa desde 0.2.0, catálogo y guardado por HTTP, permisos y nonces, conservación entre páginas, cambios de portada, referencias no disponibles y recuperación ante fallos de escritura y borrado. Desactivar conserva la selección; la limpieza del plugin se limita a sus dos opciones, sin borrar tablas ni tareas programadas.
+La versión 0.4.0 se ha comprobado en un WordPress 6.9.4/PHP 8.3.31 aislado, con datos sintéticos y prefijo de tablas distinto de `wp_`. Se verificaron actualización desde 0.3.0, migración al cargar un plugin activo, conservación de selección e identidad de instalación, mapeos extensibles, exclusión de alias técnicos, OAuth y tokens con HTTP simulado, formularios reales por HTTP, permisos, nonces y desinstalación con fallos de escritura/borrado.
 
-La sintaxis PHP y JavaScript y la lógica del aviso de cambios pendientes pasaron sus comprobaciones. Queda pendiente la revisión visual en navegador. Estas pruebas no acreditan todas las combinaciones de versiones ni cachés de objetos persistentes externas.
+Las suites reproducibles están en [tests/README.md](tests/README.md). Las comprobaciones usan respuestas simuladas y una implementación de prueba de la consulta a `wp-druid`; no acreditan conectividad con un despliegue real de Pulse ni todas las combinaciones de plugins o cachés persistentes.
 
-Comprobaciones para repetir la validación:
-
-1. Instalar y activar el ZIP en un WordPress limpio: debe aparecer el plugin y su estado, sin errores PHP; el frontend debe seguir funcionando.
-2. Actualizar una instalación activa de 0.2.0 con el ZIP 0.3.0: debe mantenerse activa y crear la selección vacía junto al esquema 2. Guardar selecciones en varias páginas del listado y comprobar que se conservan al filtrar o cambiar de página.
-3. Desactivar/reactivar conserva las opciones. Eliminar desde WordPress las borra sin afectar a otros datos; reinstalar comienza con una selección vacía.
-
-Realizar estas comprobaciones en una instancia aislada de WordPress con datos de prueba.
+Queda pendiente la revisión visual de las pantallas en navegador. La versión 0.3.0 se comprobó funcionalmente para catálogo, paginación y selección; esta versión comprueba además que la pantalla de Tracking sigue accesible.
 
 ## Desarrollo y distribución
 
@@ -67,6 +90,6 @@ Repositorio: [dru-id/wp-druid-pulse](https://github.com/dru-id/wp-druid-pulse), 
 
 Mantener los archivos PHP con UTF-8 sin BOM y convenciones de WordPress.
 
-El ZIP 0.3.0 incluye el archivo principal, `src/`, `templates/`, `assets/admin-tracking.js`, `uninstall.php` y `readme.txt`, bajo `wp-druid-pulse/`.
+El ZIP 0.4.0 incluye el archivo principal, `src/`, `templates/`, `assets/admin-tracking.js`, `uninstall.php` y `readme.txt`, bajo `wp-druid-pulse/`.
 
 La cabecera `Update URI: false` evita que WordPress.org sustituya este plugin de desarrollo por otro que tenga el mismo nombre de carpeta. No se ha añadido un servidor ni un mecanismo propio de actualizaciones.

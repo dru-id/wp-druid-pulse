@@ -37,7 +37,9 @@ final class Plugin {
 		if ( is_admin() ) {
 			require_once __DIR__ . '/ViewCatalog.php';
 			require_once __DIR__ . '/Admin/TrackingPage.php';
+			require_once __DIR__ . '/Admin/ConnectionPage.php';
 			( new Admin\TrackingPage( $this->plugin_file ) )->register_hooks();
+			( new Admin\ConnectionPage() )->register_hooks();
 		}
 	}
 
@@ -64,7 +66,7 @@ final class Plugin {
 		}
 
 		$plugin_meta[] = esc_html__(
-			'Page-view selection is available under DruID Pulse. Event tracking and delivery are not available yet.',
+			'Page-view selection and OAuth connection settings are available under DruID Pulse. Event capture and scheduled delivery are not available yet.',
 			'wp-druid-pulse'
 		);
 
