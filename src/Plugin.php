@@ -26,6 +26,10 @@ final class Plugin {
 
 	public function initialize(): void {
 		$this->initialization_error = Lifecycle::initialize();
+		if ( is_admin() ) {
+			require_once __DIR__ . '/Admin/DiagnosticsPage.php';
+			( new Admin\DiagnosticsPage( $this->plugin_file, $this->initialization_error ) )->register_hooks();
+		}
 
 		if ( null !== $this->initialization_error ) {
 			if ( is_admin() ) {

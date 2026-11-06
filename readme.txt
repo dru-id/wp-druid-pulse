@@ -1,13 +1,13 @@
 === DruID Pulse for WordPress ===
 Requires at least: 6.9
 Requires PHP: 8.3
-Stable tag: 0.9.0
+Stable tag: 0.10.0
 
 Base instalable del plugin independiente de actividad autenticada para DruID Pulse.
 
 == Descripción ==
 
-Versión de desarrollo 0.9.0.
+Versión de desarrollo 0.10.0.
 
 Permite seleccionar y guardar contenidos para páginas vistas desde el menú
 DruID Pulse > Tracking y configurar OAuth2 desde DruID Pulse > Connection.
@@ -217,7 +217,36 @@ en peticiones posteriores. Nunca se reemplaza automáticamente un esquema más
 reciente o desconocido: hay que restaurar una versión compatible o revisar los
 metadatos de instalación.
 
+== Diagnóstico y mantenimiento ==
+
+DruID Pulse > Diagnostics muestra versiones/esquema, configuración, pausa común,
+tareas y cola actual. Requiere manage_options. No comprueba la conexión remota ni
+muestra usuario, contexto, URLs, títulos, credenciales o respuestas remotas.
+Los contadores distinguen elegibles, esperas, fallos, conflictos, caducados y
+aceptados pendientes de borrado; los caducados tienen precedencia.
+El listado admite filtros y 25 registros por página, con fechas en la zona horaria
+de WordPress. No crea historial: los datos desaparecen al entregar o limpiar.
+Los logs de Action Scheduler tienen su retención propia. Completar una tarea no
+acredita entrega; puede haberse programado otro intento.
+
+Process pending programa trabajo elegible respetando pausas y fechas, sin HTTP
+desde el formulario. Clean expired elimina caducados y hasta 500 aceptados por
+pasada, sin borrar pendientes vigentes. Retry selected failed events devuelve a
+pendientes solo fallidos vigentes, después de corregir la causa. Mantiene ID,
+contexto, fechas e intentos acumulados; respeta la pausa común. No reintenta
+conflictos 409 ni caducados, y protege frente a selecciones antiguas o simultáneas.
+Las acciones comprueban POST, capacidad y nonce. La pantalla conserva acceso de
+consulta si falla la inicialización; bloquea acciones ante recursos incompatibles.
+No permite vaciar la cola ni editar eventos. Se mantiene el esquema 6 de 0.9.0.
+
 == Registro de cambios ==
+
+= 0.10.0 =
+
+* Pantalla Diagnostics con estado de instalación, configuración, tareas y cola.
+* Listado paginado y filtrable sin datos personales, contexto ni respuestas remotas.
+* Programación manual de entrega, limpieza y reintento protegido de fallidos vigentes.
+* Diagnóstico de solo lectura ante inicialización incompatible, sin cambiar el esquema 6.
 
 = 0.9.0 =
 

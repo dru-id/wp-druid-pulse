@@ -44,23 +44,38 @@ final class Scheduler {
 		if ( ! Lifecycle::is_current() ) {
 			return;
 		}
+		$result = self::request_delivery();
+		if ( is_wp_error( $result ) ) {
+			throw new \RuntimeException( $result->get_error_message() );
+		}
+	}
+
+	public static function request_delivery(): string|\WP_Error {
+		if ( ! Lifecycle::is_current() || null !== self::ready() ) {
+			return self::error();
+		}
 		$state = DeliveryState::read();
 		if ( is_wp_error( $state ) ) {
-			throw new \RuntimeException( 'Delivery state is unavailable. Check database access.' );
+			return $state;
 		}
 		if ( $state['retry_at'] > time() ) {
-			return;
+			return 'paused';
 		}
 		$ids = ( new EventStore() )->pending_ids( 1 );
 		if ( is_wp_error( $ids ) ) {
-			throw new \RuntimeException( 'Delivery could not read pending events. Check database access.' );
+			return $ids;
 		}
-		if ( ! $ids || as_has_scheduled_action( self::DELIVERY_HOOK, array(), self::GROUP ) ) {
-			return;
+		if ( ! $ids ) {
+			return 'empty';
 		}
-		$id = as_enqueue_async_action( self::DELIVERY_HOOK, array(), self::GROUP, true );
-		if ( ! $id && ! as_has_scheduled_action( self::DELIVERY_HOOK, array(), self::GROUP ) ) {
-			throw new \RuntimeException( 'Delivery could not be scheduled. Check Action Scheduler.' );
+		try {
+			if ( as_has_scheduled_action( self::DELIVERY_HOOK, array(), self::GROUP ) ) {
+				return 'already_scheduled';
+			}
+			$id = as_enqueue_async_action( self::DELIVERY_HOOK, array(), self::GROUP, true );
+			return $id ? 'scheduled' : ( as_has_scheduled_action( self::DELIVERY_HOOK, array(), self::GROUP ) ? 'already_scheduled' : self::error() );
+		} catch ( \Exception $exception ) {
+			return self::error();
 		}
 	}
 

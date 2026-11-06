@@ -16,3 +16,7 @@ add_filter( 'pre_http_request', static function ( $pre, $args, $url ) {
 	$body = 'rejected' === $mode ? array( 'error_description' => 'http-fixture-secret' ) : array( 'access_token' => 'http.fixture.token', 'token_type' => 'Bearer', 'expires_in' => 3600 );
 	return array( 'headers' => array(), 'body' => wp_json_encode( $body ), 'response' => array( 'code' => $status, 'message' => '' ), 'cookies' => array() );
 }, 999, 3 );
+
+add_filter( 'pre_as_enqueue_async_action', static function ( $pre ) {
+	return get_option( 'pulse_test_diagnostic_schedule_failure', false ) ? 0 : $pre;
+} );

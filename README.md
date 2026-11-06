@@ -4,7 +4,7 @@ Plugin independiente para enviar a DruID Pulse actividad de consumidores autenti
 
 ## Estado
 
-Versión de desarrollo **0.9.0**. Permite seleccionar contenidos para páginas vistas desde **DruID Pulse → Tracking** y configurar/probar la autenticación OAuth2 desde **DruID Pulse → Connection**.
+Versión de desarrollo **0.10.0**. Permite seleccionar contenidos para páginas vistas desde **DruID Pulse → Tracking** y configurar/probar la autenticación OAuth2 desde **DruID Pulse → Connection**.
 
 Captura vistas del contenido seleccionado para visitantes autenticados mediante un SDK JavaScript independiente y un adaptador WordPress. Incluye almacén de eventos, mantenimiento mediante Action Scheduler, receptor autenticado y transporte desde el navegador. Captura también enlaces y botones seleccionados desde **DruID Pulse → Clicks**. Entrega los eventos en segundo plano a Pulse. Los pendientes se guardan localmente y caducan a los 7 días, incluidos los fallidos. La comprobación de conexión solicita un token OAuth; no crea identidades ni envía eventos.
 
@@ -187,11 +187,29 @@ La configuración inválida lanza `invalid_configuration`. Los errores de captur
 
 WordPress conecta este SDK con `wpDruidPulse.send` mediante `assets/frontend-views.js`, cuando hay vistas o inclusiones de clics aplicables. Conserva el handle existente `wp-druid-pulse-views` para este adaptador común. `wpDruidPulse.tracker` permite acceder a esa instancia. El adaptador emite el evento de ventana `wp-druid-pulse:tracking-result` tras cada resultado del transporte o fallo automático, con `detail: { type, result }` y sin contexto ni actor. Los resultados conservan `accepted`, `rejected` o `unknown`; confirmar aceptación local no acredita entrega a Pulse. La prevención de duplicados del ciclo de vida no deduplica peticiones repetidas al receptor.
 
+## Diagnóstico y mantenimiento
+
+**DruID Pulse → Diagnostics** requiere `manage_options`. Muestra versiones/esquema, configuración de captura y conexión, tareas periódicas, pausa común y la cola actual. Configuración completa no significa conexión remota comprobada; la pantalla no solicita tokens ni envía eventos. Deshabilitar el arranque automático de WP-Cron tampoco acredita ausencia de un ejecutor externo.
+
+Los contadores separan pendientes elegibles, pendientes en espera, fallidos, conflictos, caducados y aceptados pendientes de borrado. La pausa común se incluye al calcular la elegibilidad y los caducados tienen precedencia sobre su estado anterior. El uso incluye todos los registros retenidos y sus bytes de contexto. Se indica cuándo se recibió el pendiente vigente más antiguo. No se mantiene un histórico de enviados ni de pérdidas.
+
+El listado se filtra por estado/tipo y pagina 25 registros. Solo muestra UUID local, tipo, fechas, estado, intentos y explicaciones controladas del último error; no actor, identificador de usuario, contexto, URLs, títulos ni respuestas remotas. Las fechas se presentan en la zona horaria de WordPress. Los registros desaparecen con la entrega confirmada o el mantenimiento y siguen sujetos a los siete días de retención. El enlace a Action Scheduler permite revisar sus tareas y logs con su retención propia: una tarea completada puede haber programado un reintento, sin confirmar entrega.
+
+Las acciones requieren POST y nonce:
+
+- **Process pending** programa entrega en segundo plano respetando pausas y fechas de reintento; el formulario no envía HTTP a Pulse.
+- **Clean expired** ejecuta el mantenimiento existente: elimina caducados y hasta 500 aceptados pendientes de borrado, conservando pendientes vigentes.
+- **Retry selected failed events** devuelve a pendientes los fallidos seleccionados que sigan vigentes, después de corregir la causa. Conserva UUID/externalId, contexto, fecha, caducidad e intentos acumulados. Respeta la pausa común; no permite reintentar conflictos 409 ni caducados. Una selección de una versión anterior del evento no reactiva un fallo posterior.
+
+La pantalla sigue disponible en modo de consulta si falla la inicialización; las acciones se bloquean cuando instalación, almacén, estado de entrega o planificador no son compatibles. No permite vaciar la cola ni editar eventos. Esta versión conserva el esquema 6 y los formatos persistidos de 0.9.0.
+
 ## Verificación
 
-La versión 0.9.0 se ha comprobado en WordPress 6.9.4/PHP 8.3.31/MySQL 8.0 aislados, con datos sintéticos y prefijo distinto de `wp_`: 191 comprobaciones HTTP de receptor/vistas/clics, 143 de entrega, 88 de integración, 45 de cola, 29 de administración y 53 de ciclo de vida. Incluyen el recorrido autenticado REST → cola → entrega simulada → borrado, reintentos, conflictos, cambio concurrente de conexión, fallos de escritura, migración interrumpida, un proceso terminado durante el envío y cuatro trabajadores concurrentes.
+La versión 0.10.0 se ha comprobado en WordPress 6.9.4/PHP 8.3.31/MySQL 8.0 aislados, con datos sintéticos y prefijo distinto de `wp_`: 191 comprobaciones HTTP de receptor/vistas/clics, 143 de entrega, 88 de integración, 45 de cola, 29 de administración y 53 de ciclo de vida. Incluyen el recorrido autenticado REST → cola → entrega simulada → borrado, reintentos, conflictos, cambio concurrente de conexión, fallos de escritura, migración interrumpida, un proceso terminado durante el envío y cuatro trabajadores concurrentes.
 
-La actualización activa nativa desde 0.8.0 conserva ajustes, evento pendiente y mantenimiento, y avanza al esquema 6. El ZIP se instaló y activó mediante las APIs nativas tras desinstalar en frío; sus 152 archivos coinciden por hash. Action Scheduler 4.2.0 permanece sin cambios.
+El diagnóstico añade 101 comprobaciones de administración/persistencia y siete de navegador. Revisada su pantalla en Chrome 150, con tamaños de escritorio y móvil.
+
+La actualización activa nativa desde 0.9.0 conserva ajustes, pausa común, evento fallido e intentos y mantenimiento, manteniendo el esquema 6. El ZIP se instaló y activó mediante las APIs nativas tras desinstalar en frío; sus 155 archivos coinciden por hash. Action Scheduler 4.2.0 permanece sin cambios.
 
 El SDK y el transporte no cambian: pasan nuevamente 93 comprobaciones del SDK/adaptador y 30 del transporte. Las pruebas de Chrome 150 de 0.8.0 (33 de clics/WordPress y 11 de páginas/BFCache) no se repiten en esta versión. Los topes reales de 10.000 eventos/100 MiB y la concurrencia de inserción se verificaron en 0.5.0; se conservan sus políticas.
 Las suites y sus condiciones están en [tests/README.md](tests/README.md). No acreditan todos los navegadores, constructores, plugins de acceso, cachés compartidas ni conexión con un despliegue real de Pulse. La entrega y los errores se verifican con respuestas HTTP simuladas; no se ha validado un despliegue real de Pulse.
@@ -202,6 +220,6 @@ Repositorio: [dru-id/wp-druid-pulse](https://github.com/dru-id/wp-druid-pulse), 
 
 Mantener los archivos PHP con UTF-8 sin BOM y convenciones de WordPress.
 
-El ZIP 0.9.0 incluye el archivo principal, `src/`, `templates/`, `assets/`, `libraries/` con sus licencias, `uninstall.php` y `readme.txt`, bajo `wp-druid-pulse/`.
+El ZIP 0.10.0 incluye el archivo principal, `src/`, `templates/`, `assets/`, `libraries/` con sus licencias, `uninstall.php` y `readme.txt`, bajo `wp-druid-pulse/`.
 
 La cabecera `Update URI: false` evita que WordPress.org sustituya este plugin de desarrollo por otro que tenga el mismo nombre de carpeta. No se ha añadido un servidor ni un mecanismo propio de actualizaciones.

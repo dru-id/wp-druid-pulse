@@ -1,0 +1,16 @@
+.pulse-diagnostic-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 16px; margin: 20px 0; }
+.pulse-diagnostic-panel { background: #fff; border: 1px solid #c3c4c7; padding: 4px 20px 12px; }
+.pulse-diagnostic-counts { display: flex; flex-wrap: wrap; gap: 12px; }
+.pulse-diagnostic-counts > div { flex: 1 1 140px; background: #fff; border: 1px solid #c3c4c7; padding: 12px; }
+.pulse-diagnostic-counts strong { display: block; font-size: 24px; line-height: 1.4; }
+.pulse-diagnostic-counts span { display: block; }
+.pulse-diagnostic-actions { margin: 20px 0; }
+.pulse-diagnostic-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 20px 0 12px; }
+.pulse-diagnostic-table { overflow-x: auto; }
+.pulse-diagnostic-table table { min-width: 820px; }
+.pulse-diagnostic-table th:first-child { width: 45px; }
+.pulse-diagnostic-table td:nth-child(2) { width: 20%; overflow-wrap: anywhere; }
+.pulse-diagnostic-table td:nth-child(3) { width: 16%; }
+.pulse-diagnostic-table td:nth-child(4) { width: 29%; }
+.pulse-diagnostic-table code { background: transparent; padding: 0; }
+.pulse-diagnostics .tablenav .page-numbers { display: inline-block; padding: 6px 10px; }

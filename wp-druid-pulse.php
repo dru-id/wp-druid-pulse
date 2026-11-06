@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DruID Pulse for WordPress
  * Description: Independent DruID Pulse integration with authenticated page views and clicks, OAuth, an extensible browser tracker and scheduled event delivery.
- * Version: 0.9.0
+ * Version: 0.10.0
  * Requires at least: 6.9
  * Requires PHP: 8.3
  * Author: Genetsis
