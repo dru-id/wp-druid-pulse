@@ -17,7 +17,8 @@ require_once WP_PLUGIN_DIR . '/wp-druid-pulse/src/EventPreparer.php';
 
 $credentials = json_decode( file_get_contents( getenv( 'WP_TEST_CREDENTIALS' ) ?: '/test/private.json' ), true );
 $base = home_url();
-$endpoint = rest_url( 'wp-druid-pulse/v1/events' );
+// Keep this endpoint valid while the view and click suites change permalinks.
+$endpoint = add_query_arg( 'rest_route', '/wp-druid-pulse/v1/events', home_url( '/' ) );
 $checks = 0;
 $exit_code = 0;
 $jars = array( tempnam( '/tmp', 'pulse-admin-' ), tempnam( '/tmp', 'pulse-subscriber-' ) );
@@ -74,7 +75,7 @@ function browser_login( int $index ): array {
 	) ), array( 'Content-Type: application/x-www-form-urlencoded' ) );
 	verify_receiver( 302 === $login['status'], 'The test user could not log in.' );
 	$front = receiver_request( $base . '/', $jars[ $index ] );
-	verify_receiver( 200 === $front['status'] && str_contains( $front['body'], 'assets/frontend-transport.js?ver=0.7.0' ), 'Authenticated frontend did not load the transport.' );
+	verify_receiver( 200 === $front['status'] && str_contains( $front['body'], 'assets/frontend-transport.js?ver=0.8.0' ), 'Authenticated frontend did not load the transport.' );
 	verify_receiver( 1 === preg_match( '/window\.wpDruidPulseSettings = (\{[^\n]+\});/', $front['body'], $match ), 'Session-specific settings were not found.' );
 	$settings = json_decode( $match[1], true );
 	verify_receiver( array( 'endpoint', 'nonce', 'maxBytes' ) === array_keys( $settings ) && 16384 === $settings['maxBytes'], 'Unexpected browser settings or exposed configuration.' );
@@ -160,7 +161,8 @@ try {
 		rejected_request( wp_json_encode( $event + array( $key => $value ) ), $jars[0], $headers, 400, 'wp_druid_pulse_request_invalid' );
 	}
 	rejected_request( wp_json_encode( array_replace( $event, array( 'type' => 'page_view' ) ) ), $jars[0], $headers, 400, 'wp_druid_pulse_view_context' );
-	foreach ( array( 'click', 'fixture_disabled', 'unknown' ) as $type ) {
+	rejected_request( wp_json_encode( array_replace( $event, array( 'type' => 'click' ) ) ), $jars[0], $headers, 400, 'wp_druid_pulse_click_context' );
+	foreach ( array( 'fixture_disabled', 'unknown' ) as $type ) {
 		rejected_request( wp_json_encode( array_replace( $event, array( 'type' => $type ) ) ), $jars[0], $headers, 400, 'wp_druid_pulse_event_type_unavailable' );
 	}
 	foreach ( array( '', 'Bad type', array( 'fixture_activity' ) ) as $type ) {
@@ -194,6 +196,8 @@ try {
 
 	$views = require __DIR__ . '/page-views-http.php';
 	$views( $jars[1], $subscriber_headers, (int) $users[1]->ID );
+	$clicks = require __DIR__ . '/clicks-http.php';
+	$clicks( $jars, $headers, $subscriber_headers, (int) $users[1]->ID );
 	$application_password = WP_Application_Passwords::create_new_application_password( $users[1]->ID, array( 'name' => 'Pulse receiver isolated test' ) );
 	verify_receiver( ! is_wp_error( $application_password ), 'Could not create the synthetic application password.' );
 	$basic = $credentials['subscriber_user'] . ':' . $application_password[0];
@@ -214,7 +218,7 @@ try {
 	verify_receiver( 202 === receiver_request( $endpoint, $jars[1], 'POST', $body, array( 'Content-Type: application/json', 'X-WP-Nonce: ' . $new_settings['nonce'] ) )['status'], 'The new page could not use its own session.' );
 	echo "PASS: $checks receiver HTTP assertions.\n";
 } catch ( Throwable $error ) {
-	fwrite( STDERR, 'FAIL: ' . $error->getMessage() . "\n" );
+	fwrite( STDERR, 'FAIL: ' . $error->getMessage() . "\n" . $error->getTraceAsString() . "\n" );
 	$exit_code = 1;
 } finally {
 	delete_option( 'pulse_phase6_receiver_mode' );

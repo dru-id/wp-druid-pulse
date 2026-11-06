@@ -7,7 +7,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 <div class="wrap">
 	<h1><?php esc_html_e( 'DruID Pulse — Tracking', 'wp-druid-pulse' ); ?></h1>
 	<p><?php esc_html_e( 'Choose the content whose page views you want to track. Click selection is independent of this list.', 'wp-druid-pulse' ); ?></p>
-	<div class="notice notice-info inline"><p><?php esc_html_e( 'Selected pages record views from signed-in visitors when ready and visible. Events are stored locally and expire after 7 days. Click capture and scheduled delivery to Pulse are not available in this version.', 'wp-druid-pulse' ); ?></p></div>
+	<div class="notice notice-info inline"><p><?php esc_html_e( 'Selected pages record views from signed-in visitors when ready and visible. Events are stored locally and expire after 7 days. Configure clicks independently under Clicks. Scheduled delivery to Pulse is not available in this version.', 'wp-druid-pulse' ); ?></p></div>
 	<?php if ( '1' === ( $_GET['saved'] ?? null ) ) : ?>
 		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Selection saved.', 'wp-druid-pulse' ); ?></p></div>
 	<?php endif; ?>

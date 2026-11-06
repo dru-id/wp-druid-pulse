@@ -8,7 +8,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 final class Lifecycle {
 	private const SCHEMA_OPTION = 'wp_druid_pulse_schema_version';
-	private const SCHEMA_VERSION = 4;
+	private const SCHEMA_VERSION = 5;
 
 	public static function is_current(): bool {
 		return in_array( get_option( self::SCHEMA_OPTION, null ), array( self::SCHEMA_VERSION, (string) self::SCHEMA_VERSION ), true );
@@ -21,7 +21,7 @@ final class Lifecycle {
 			return Scheduler::ready();
 		}
 
-		if ( ! in_array( $version, array( null, 1, '1', 2, '2', 3, '3' ), true ) ) {
+		if ( ! in_array( $version, array( null, 1, '1', 2, '2', 3, '3', 4, '4' ), true ) ) {
 			return new \WP_Error(
 				'wp_druid_pulse_incompatible_schema',
 				__( 'DruID Pulse installation data is incompatible with this plugin version. Existing data has been preserved. Restore a compatible plugin version or check the installation metadata.', 'wp-druid-pulse' )
@@ -33,7 +33,7 @@ final class Lifecycle {
 		if ( null !== $error ) {
 			return $error;
 		}
-		foreach ( array( SiteContext::class, ConnectionSettings::class ) as $resource ) {
+		foreach ( array( ClickRules::class, SiteContext::class, ConnectionSettings::class ) as $resource ) {
 			$error = $resource::initialize();
 			if ( null !== $error ) {
 				return $error;
@@ -68,6 +68,10 @@ final class Lifecycle {
 		if ( null === $error ) {
 			$selection = ViewSelection::read();
 			$error = is_wp_error( $selection ) ? $selection : null;
+		}
+		if ( null === $error ) {
+			$rules = ClickRules::read();
+			$error = is_wp_error( $rules ) ? $rules : null;
 		}
 		if ( null === $error ) {
 			$id = SiteContext::id();
@@ -109,7 +113,7 @@ final class Lifecycle {
 			}
 		}
 		// Read database records directly: get_transient() can expire them without reporting deletion failures.
-		foreach ( array( ViewSelection::OPTION, SiteContext::OPTION, ConnectionSettings::OPTION, '_transient_' . ConnectionSettings::TOKEN_TRANSIENT, '_transient_timeout_' . ConnectionSettings::TOKEN_TRANSIENT, self::SCHEMA_OPTION ) as $option ) {
+		foreach ( array( ViewSelection::OPTION, ClickRules::OPTION, SiteContext::OPTION, ConnectionSettings::OPTION, '_transient_' . ConnectionSettings::TOKEN_TRANSIENT, '_transient_timeout_' . ConnectionSettings::TOKEN_TRANSIENT, self::SCHEMA_OPTION ) as $option ) {
 			$value = get_option( $option, null );
 
 			// WordPress can cache absence even when the database deletion fails.

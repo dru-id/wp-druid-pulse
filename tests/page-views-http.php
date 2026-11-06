@@ -13,7 +13,7 @@ return static function ( string $jar, array $headers, int $user_id ): void {
 	global $wpdb, $wp_rewrite, $endpoint, $checks;
 	$initial_checks = $checks;
 	$options = array();
-	foreach ( array( ViewSelection::OPTION, 'show_on_front', 'page_on_front', 'page_for_posts', 'posts_per_page', 'permalink_structure' ) as $name ) {
+	foreach ( array( ViewSelection::OPTION, \WP_Druid_Pulse\ClickRules::OPTION, 'show_on_front', 'page_on_front', 'page_for_posts', 'posts_per_page', 'permalink_structure' ) as $name ) {
 		$options[ $name ] = get_option( $name );
 	}
 	$posts = array();
@@ -30,8 +30,8 @@ return static function ( string $jar, array $headers, int $user_id ): void {
 		} else {
 			verify_receiver( 200 === $response['status'] && 1 === count( $matches[1] )
 				&& array( 'page' => array( 'key' => $expected ) ) === json_decode( $matches[1][0], true ), 'Selected content did not provide exactly one minimal reference: ' . $url );
-			verify_receiver( 1 === substr_count( $response['body'], 'assets/tracker.js?ver=0.1.0' )
-				&& str_contains( $response['body'], 'assets/frontend-views.js?ver=0.7.0' )
+			verify_receiver( 1 === substr_count( $response['body'], 'assets/tracker.js?ver=0.2.0' )
+				&& str_contains( $response['body'], 'assets/frontend-views.js?ver=0.8.0' )
 				&& strpos( $response['body'], 'assets/tracker.js' ) < strpos( $response['body'], 'assets/frontend-views.js' ), 'SDK and adapter assets were missing, duplicated or unordered.' );
 		}
 		return $response;
@@ -47,6 +47,7 @@ return static function ( string $jar, array $headers, int $user_id ): void {
 		return $saved;
 	};
 	try {
+		update_option( \WP_Druid_Pulse\ClickRules::OPTION, array( 'include' => array(), 'exclude' => array() ) );
 		verify_receiver( post_type_exists( 'pulse_public' ), 'Install the views MU fixture before running this suite.' );
 		foreach ( array( 'post', 'page', 'page', 'post', 'pulse_public', 'pulse_hidden' ) as $i => $type ) {
 			$posts[] = wp_insert_post( array( 'post_title' => 'View fixture ' . $i, 'post_status' => 'publish', 'post_type' => $type,

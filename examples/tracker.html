@@ -5,6 +5,7 @@
 <h1>DruID Tracker without WordPress</h1>
 <p>This example receives events in this page. It makes no event requests and stores no identity.</p>
 <p>Reload, navigate to <a href="?page=second">another document</a>, or go back to observe page views. Switching tabs does not create another view.</p>
+<p id="offers"><a href="#product" class="promo-product">See product <span>→</span></a> <button class="promo-buy">Choose offer</button></p>
 <button id="start">Start</button>
 <button id="stop">Stop</button>
 <button id="custom">Emit a custom event</button>
@@ -14,7 +15,8 @@
 	const output = document.getElementById('events');
 	const tracker = DruidTracker.create({
 		id: 'independent-example',
-		getContext: () => ({ page: { name: new URLSearchParams(location.search).get('page') === 'second' ? 'second' : 'first' } }),
+		clicks: { include: [{ selector: '#offers a[href], #offers button', classPrefix: 'promo-' }] },
+		getContext: ({ type, element }) => ({ page: { name: new URLSearchParams(location.search).get('page') === 'second' ? 'second' : 'first' }, ...(type === 'click' ? { label: element.textContent.trim() } : {}) }),
 		emit: event => { output.textContent += JSON.stringify(event) + '\n'; },
 		onError: error => { output.textContent += 'Capture error: ' + error.code + '\n'; }
 	});

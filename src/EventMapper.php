@@ -7,13 +7,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 require_once __DIR__ . '/PageViews.php';
+require_once __DIR__ . '/Clicks.php';
+require_once __DIR__ . '/EventUrl.php';
 
 final class EventMapper {
 	private array $types = array();
 
 	public function __construct() {
 		$this->register( 'page_view', array( $this, 'view' ), array( PageViews::class, 'validate_context' ) );
-		$this->register( 'click', array( $this, 'click' ) );
+		$this->register( 'click', array( $this, 'click' ), array( Clicks::class, 'validate_context' ) );
 		do_action( 'wp_druid_pulse_register_event_types', $this );
 	}
 
@@ -40,7 +42,7 @@ final class EventMapper {
 		}
 		$page = $data['page'] ?? null;
 		if ( ! is_array( $page ) || ! isset( $page['key'], $page['url'] ) || ! is_string( $page['key'] )
-			|| ! preg_match( '/^[a-zA-Z0-9:_-]+$/D', $page['key'] ) || ! self::valid_url( $page['url'] )
+			|| ! preg_match( '/^[a-zA-Z0-9:_-]+$/D', $page['key'] ) || ! EventUrl::valid( $page['url'] )
 			|| 'person' !== ( $actor['objectType'] ?? null ) ) {
 			return self::invalid_event();
 		}
@@ -83,7 +85,7 @@ final class EventMapper {
 			$target = $data['target'];
 			if ( ! is_array( $target ) || ! isset( $target['objectType'], $target['url'] )
 				|| ! is_string( $target['objectType'] ) || ! preg_match( '/^[a-zA-Z][a-zA-Z0-9]*$/D', $target['objectType'] )
-				|| ! self::valid_url( $target['url'] ) ) {
+				|| ! EventUrl::valid( $target['url'], true ) ) {
 				return self::invalid_event();
 			}
 			$id = null;
@@ -108,15 +110,6 @@ final class EventMapper {
 			$resource['displayName'] = $title;
 		}
 		return $resource;
-	}
-
-	private static function valid_url( mixed $value ): bool {
-		if ( ! is_string( $value ) || preg_match( '/[\x00-\x20\x7f]/', $value ) ) {
-			return false;
-		}
-		$url = wp_parse_url( $value );
-		return is_array( $url ) && in_array( $url['scheme'] ?? null, array( 'http', 'https' ), true )
-			&& ! empty( $url['host'] ) && ! isset( $url['user'] ) && ! isset( $url['pass'] );
 	}
 
 	private static function invalid_event(): \WP_Error {

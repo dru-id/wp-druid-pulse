@@ -1,20 +1,19 @@
 === DruID Pulse for WordPress ===
 Requires at least: 6.9
 Requires PHP: 8.3
-Stable tag: 0.7.0
+Stable tag: 0.8.0
 
 Base instalable del plugin independiente de actividad autenticada para DruID Pulse.
 
 == Descripción ==
 
-Versión de desarrollo 0.7.0.
+Versión de desarrollo 0.8.0.
 
 Permite seleccionar y guardar contenidos para páginas vistas desde el menú
 DruID Pulse > Tracking y configurar OAuth2 desde DruID Pulse > Connection.
 Incluye almacén de eventos, mantenimiento mediante Action Scheduler, receptor
-autenticado y un SDK JavaScript independiente con adaptador WordPress para vistas.
-Captura contenido seleccionado para visitantes autenticados. La captura de clics
-y la entrega automática a Pulse todavía no están disponibles.
+autenticado y un SDK JavaScript independiente con adaptador WordPress para vistas
+y clics seleccionados. La entrega automática a Pulse todavía no está disponible.
 La prueba de conexión solicita un token; no envía eventos ni crea identidades.
 
 No requiere wp-druid ni WooCommerce. Guarda esquema, selección, UUID y conexión
@@ -51,7 +50,30 @@ se pueden retirar. Recuperan su selección si vuelven a estar disponibles con el
 mismo ID. Cambiar la portada no selecciona automáticamente otra página.
 
 Configurar y guardar requiere manage_options y un nonce válido. La selección
-de clics es independiente del catálogo de vistas y todavía no está disponible.
+de clics es independiente del catálogo de vistas y se configura en Clicks.
+
+== Selección y captura de clics ==
+
+DruID Pulse > Clicks permite añadir inclusiones y exclusiones con selector CSS,
+prefijo de clase opcional y ámbito global o IDs de contenidos del catálogo.
+Por ejemplo, #main-menu a[href] selecciona enlaces dentro de ese menú. Las
+exclusiones prevalecen y reglas solapadas no duplican una misma interacción.
+Inicialmente no hay reglas y no se capturan clics. Guardar requiere manage_options
+más nonce. Las referencias de contenido funcionan también con enlaces simples.
+
+El SDK 0.2.0 ofrece pages y clicks.include/exclude sin depender de WordPress.
+getContext recibe type y element; emit recibe el evento. El SDK no envía HTTP.
+Detecta a[href] y button, incluidos iconos interiores y elementos dinámicos.
+Ratón, teclado nativo y toque cuentan una activación; el botón central solo en
+enlaces. No registra clic derecho, eventos programáticos, teclas o formularios.
+track() conserva la emisión explícita de cualquier tipo de evento.
+
+El adaptador conserva página origen, etiqueta y destino HTTP(S), tel o mailto.
+El origen usa el enlace permanente o una ruta sin parámetros de navegación.
+Un botón sin destino conocido no inventa target. No se capturan HTML ni valores
+de formularios. Las URLs y los campos de entrada se validan antes de encolar.
+El servidor no puede acreditar que la interacción haya ocurrido en el DOM.
+Enviar tel a un despliegue de Pulse requiere su validador compatible.
 
 == Captura de vistas ==
 
@@ -119,7 +141,9 @@ Recibe únicamente type, published (UTC, YYYY-MM-DDTHH:MM:SSZ) y context, con un
 máximo de 16 KiB por cuerpo JSON. Cada tipo necesita un validador registrado.
 page_view recibe únicamente context.page.key (post:ID o home:posts). WordPress
 revalida selección, publicación y acceso nativo, y resuelve título/URL al recibir.
-click sigue deshabilitado para recepción hasta incorporar su captura.
+click recibe la página origen (key/url/title), la etiqueta del enlace y el destino
+conocido opcional. Revalida el origen, las inclusiones aplicables y la disponibilidad
+del contenido. Conserva ese contexto para la preparación posterior.
 
 202 confirma almacenamiento local con un UUID; no confirma entrega a Pulse.
 Los errores de validación, sesión, tamaño, capacidad o BD no se presentan como éxito.
@@ -141,7 +165,8 @@ ejecución iniciada puede terminar. Reactivar restablece el mantenimiento sin
 reiniciar datos ni recuperar eventos caducados para envío.
 Eliminar desde la pantalla de plugins de WordPress borra únicamente las opciones
 wp_druid_pulse_view_selection, wp_druid_pulse_schema_version,
-wp_druid_pulse_installation_id y wp_druid_pulse_connection, además del transient
+wp_druid_pulse_installation_id, wp_druid_pulse_connection y
+wp_druid_pulse_click_rules, además del transient
 wp_druid_pulse_oauth_token, la tabla de eventos y las tareas/registros propios.
 Conserva las tablas compartidas de Action Scheduler y las tareas ajenas.
 Una reinstalación
@@ -159,8 +184,8 @@ la selección vacía si no existe. La actualización a 0.5.0 añade la tabla y e
 mantenimiento y solo avanza al esquema 4 tras comprobarlos. Conserva selección,
 UUID y conexión existentes. Los errores de lectura o guardado se muestran sin
 reiniciar los datos.
-La versión 0.7.0 conserva el esquema 4, los ajustes, eventos y mantenimiento
-al actualizar desde 0.5.0/0.6.0.
+La versión 0.8.0 incorpora reglas de clics vacías y avanza al esquema 5,
+conservando los ajustes, eventos y mantenimiento existentes.
 
 Si la inicialización falla, la activación se interrumpe. Si el plugin ya estaba
 activo, conserva los datos y deja sus funciones en pausa; los usuarios con
@@ -170,6 +195,15 @@ reciente o desconocido: hay que restaurar una versión compatible o revisar los
 metadatos de instalación.
 
 == Registro de cambios ==
+
+= 0.8.0 =
+
+* SDK 0.2.0 con filtros de páginas y reglas declarativas de clics.
+* Captura de ratón, teclado y toque sin duplicados ni bloqueo de navegación.
+* Pantalla Clicks con inclusiones/exclusiones y ámbito de contenido por ID.
+* Receptor y mapeador de clics con origen, etiqueta y destinos tel/mailto.
+* Esquema 5: opción de reglas vacía, preservación al desactivar y retirada exacta.
+* La entrega automática a Pulse continúa pendiente.
 
 = 0.7.0 =
 

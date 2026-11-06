@@ -4,9 +4,9 @@ Plugin independiente para enviar a DruID Pulse actividad de consumidores autenti
 
 ## Estado
 
-Versión de desarrollo **0.7.0**. Permite seleccionar contenidos para páginas vistas desde **DruID Pulse → Tracking** y configurar/probar la autenticación OAuth2 desde **DruID Pulse → Connection**.
+Versión de desarrollo **0.8.0**. Permite seleccionar contenidos para páginas vistas desde **DruID Pulse → Tracking** y configurar/probar la autenticación OAuth2 desde **DruID Pulse → Connection**.
 
-Captura vistas del contenido seleccionado para visitantes autenticados mediante un SDK JavaScript independiente y un adaptador WordPress. Incluye almacén de eventos, mantenimiento mediante Action Scheduler, receptor autenticado y transporte desde el navegador. La selección/captura de clics y la entrega automática a Pulse **todavía no están disponibles**. Las vistas se guardan localmente y caducan a los 7 días. La comprobación de conexión solicita un token OAuth; no crea identidades ni envía eventos.
+Captura vistas del contenido seleccionado para visitantes autenticados mediante un SDK JavaScript independiente y un adaptador WordPress. Incluye almacén de eventos, mantenimiento mediante Action Scheduler, receptor autenticado y transporte desde el navegador. Captura también enlaces y botones seleccionados desde **DruID Pulse → Clicks**. La entrega automática a Pulse **todavía no está disponible**. Los eventos se guardan localmente y caducan a los 7 días. La comprobación de conexión solicita un token OAuth; no crea identidades ni envía eventos.
 
 ## Requisitos
 
@@ -25,19 +25,20 @@ Si se dispone de un ZIP instalable, se puede subir desde **Plugins → Añadir n
 
 ## Ciclo de vida y datos propios
 
-Esta versión usa el esquema 4 y conserva cuatro opciones propias:
+Esta versión usa el esquema 5 y conserva cinco opciones propias:
 
 - `wp_druid_pulse_schema_version`: versión del esquema, con autoload.
 - `wp_druid_pulse_view_selection`: selección de vistas, sin autoload.
+- `wp_druid_pulse_click_rules`: inclusiones/exclusiones de clics, inicialmente vacías y sin autoload.
 - `wp_druid_pulse_installation_id`: UUID persistente, sin autoload.
 - `wp_druid_pulse_connection`: conexión y secreto, sin autoload.
 
 El token OAuth se conserva temporalmente en el transient `wp_druid_pulse_oauth_token`, ligado a las opciones de conexión y con caducidad. Cambiar los ajustes lo invalida; un token ausente o caducado se obtiene de nuevo cuando se solicita una operación. Los eventos se guardan en `<prefijo>druid_pulse_events`. Action Scheduler utiliza su infraestructura compartida y programa el mantenimiento propio del plugin.
 
-Activación y actualización inicializan únicamente los recursos que faltan en esquemas anteriores y avanzan al esquema 4 después de comprobar la tabla y programar el mantenimiento. Actualizar desde 0.5.0/0.6.0 conserva esquema, ajustes, eventos y mantenimiento; desde 0.4.0 conserva selección, UUID y conexión; desde 0.3.0 conserva la selección; desde 0.1.0/0.2.0 también se inicializa la selección vacía si falta. Una actualización de un plugin activo se comprueba en `init`, después de inicializar Action Scheduler, sin necesitar una reactivación. No se rebajan esquemas más recientes ni se reinician datos incompatibles.
+Activación y actualización inicializan únicamente los recursos que faltan y avanzan al esquema 5 después de comprobarlos. Desde 0.7.0 se añade la opción vacía de clics, conservando selección, UUID, conexión, eventos y mantenimiento. Las actualizaciones de versiones anteriores mantienen sus datos e inicializan los recursos incorporados después. La actualización de un plugin activo se comprueba en `init`, después de inicializar Action Scheduler, sin necesitar una reactivación. No se rebajan esquemas más recientes ni se reinician datos incompatibles.
 
 - **Desactivar/reactivar:** conserva selección, UUID, credenciales y eventos. Desactivar cancela las tareas propias pendientes; una ejecución ya iniciada puede terminar. Reactivar restablece el mantenimiento. La caducidad continúa durante la desactivación y los vencidos no se recuperan para envío.
-- **Eliminar desde WordPress:** retira la tabla de eventos, las tareas y registros propios, las cuatro opciones y el transient. Conserva las tablas compartidas de Action Scheduler y las tareas de otros componentes. Un fallo de borrado interrumpe la desinstalación y permite reintentarlo.
+- **Eliminar desde WordPress:** retira la tabla de eventos, las tareas y registros propios, las cinco opciones y el transient. Conserva las tablas compartidas de Action Scheduler y las tareas de otros componentes. Un fallo de borrado interrumpe la desinstalación y permite reintentarlo.
 - **Reinstalar tras eliminar:** comienza con configuración vacía y otro UUID.
 - **Borrar archivos manualmente:** no ejecuta esta limpieza.
 
@@ -72,7 +73,7 @@ La ruta local `POST /wp-druid-pulse/v1/events`, dentro de la REST API de WordPre
 
 El cuerpo debe ser JSON y contener únicamente `type`, `published` y `context`. `type` identifica un tipo registrado con validador de entrada; `published` es la fecha original declarada por el navegador, en UTC y con precisión de segundos (`YYYY-MM-DDTHH:MM:SSZ`); `context` contiene los campos específicos permitidos por ese validador. No se admiten fechas inválidas ni se sustituyen por la fecha de recepción. La retención se calcula desde la aceptación local, independientemente de esa fecha declarada.
 
-`page_view` admite únicamente `context: {"page":{"key":"post:123"}}`, o la referencia `home:posts` para la portada de últimas entradas. WordPress revalida selección, publicación y contraseña nativa y completa título/URL antes de guardar. Rechaza campos adicionales, incluidas URLs o títulos aportados por el navegador. `click` mantiene su mapeador interno, pero todavía se rechaza por HTTP. Una extensión PHP puede registrar otro tipo mediante `wp_druid_pulse_register_event_types`, con su mapeador y validador. La aceptación de tipos adicionales no requiere cambiar el receptor ni el transporte.
+`page_view` admite únicamente `context: {"page":{"key":"post:123"}}`, o la referencia `home:posts` para la portada de últimas entradas. WordPress revalida selección, publicación y contraseña nativa y completa título/URL antes de guardar. Rechaza campos adicionales, incluidas URLs o títulos aportados por el navegador. `click` admite `page: {key, url, title}`, `link: {title}` y, opcionalmente, `target: {objectType, url}`. El receptor revalida que haya inclusiones aplicables a esa referencia, la disponibilidad del contenido y el origen de la URL; rechaza otros campos, HTML de formulario e identidad aportada por el cliente. Sanea los títulos. El servidor no puede demostrar que un selector coincidiese en el DOM ni que una interacción declarada haya ocurrido. Una extensión PHP puede registrar otro tipo mediante `wp_druid_pulse_register_event_types`, con su mapeador y validador. La aceptación de tipos adicionales no requiere cambiar el receptor ni el transporte.
 
 - Límite: **16 KiB del cuerpo HTTP completo en UTF-8**, comprobado antes de decodificar JSON. Es independiente del máximo interno de 64 KiB por contexto.
 - Éxito: `202` con `{"accepted":true,"event_id":"<UUID local>"}`, solo después de persistir. Confirma aceptación en WordPress, no entrega a Pulse.
@@ -121,9 +122,17 @@ Una vista se genera cuando el HTML está preparado y el documento se hace visibl
 
 El navegador envía referencia y fecha del hecho. Al recibir, WordPress obtiene el título y la URL base mediante sus APIs; conserva parámetros estructurales como `?p=123`, sin copiar parámetros de navegación, campañas o fragmentos. La paginación cuenta como otra vista del mismo contenido y su URL base. Cambios de título/URL entre carga y recepción se reflejan al aceptar; cambios posteriores no alteran el evento guardado. Si el contenido deja de estar seleccionado, publicado o accesible antes de recibir, se rechaza el nuevo evento sin modificar los ya aceptados.
 
+## Configurar clics
+
+**DruID Pulse → Clicks** requiere `manage_options` y nonce. Añadir filas de inclusión/exclusión, un selector CSS y, si interesa, un prefijo de clase. Elegir todas las páginas del frontend o IDs específicos del catálogo; `home:posts` representa la portada de últimas entradas. Se admiten varios IDs separados por comas. La elección no depende de qué vistas estén seleccionadas. Las referencias se resuelven por ID en PHP antes de configurar el SDK; los enlaces simples `?p=123` no amplían una regla a otros contenidos.
+
+Se recoge la etiqueta (`aria-label`, texto o atributo `title`) y el destino conocido del enlace. No se inventan IDs de enlaces ni destinos de botones. Se admiten destinos HTTP(S), `tel:` y `mailto:`; otros protocolos no se añaden como destino. El objeto conserva la URL de origen; el destino HTTP(S) se representa como `page`, y teléfono/correo como `link`. El plugin admite URLs de hasta 1024 bytes UTF-8, dentro del máximo de longitud de Pulse; las validaciones también rechazan espacios/control, credenciales en URL y escapes porcentuales incompletos. Aceptar `tel:` en un despliegue de Pulse requiere su validador compatible; esta versión no despliega cambios en Pulse.
+
+La página de origen se fija al generar el HTML: enlace permanente y título para contenido del catálogo, o ruta sin query/fragmento para otras páginas del frontend. Se conservan parámetros estructurales del enlace permanente, como `?p=123`. En búsquedas se utiliza el título del sitio para no capturar el texto buscado. El adaptador no observa navegación SPA. El contenido no publicado/no disponible, las contraseñas nativas pendientes, las previsualizaciones y el Personalizador no habilitan captura automática. El receptor guarda ese contexto del clic sin reconstruirlo al preparar el envío.
+
 ## SDK JavaScript independiente
 
-[`assets/tracker.js`](assets/tracker.js) expone `window.DruidTracker` (versión inicial 0.1.0). No necesita PHP, WordPress ni dependencias. No lee identidad, cookies o URL ni realiza peticiones: el consumidor proporciona contexto y destino. El [ejemplo independiente](examples/tracker.html) muestra eventos en la página sin enviarlos a un servidor.
+[`assets/tracker.js`](assets/tracker.js) expone `window.DruidTracker` (versión 0.2.0). No necesita PHP, WordPress ni dependencias. No lee identidad ni cookies, ni realiza peticiones. Consulta `location.pathname` al evaluar filtros declarativos de rutas; el consumidor proporciona contexto y destino. El [ejemplo independiente](examples/tracker.html) muestra eventos en la página sin enviarlos a un servidor.
 
 ```js
 const tracker = DruidTracker.create({
@@ -136,25 +145,42 @@ tracker.start();
 tracker.track('product_selected', { product: 'example' }).catch(handleError);
 ```
 
-El consumidor recibe `{ type, published, context }`, con fecha UTC en segundos. `getContext()` es síncrono, se consulta para cada vista automática y devuelve un objeto o `null` para omitir esa activación. `emit()` puede ser síncrono o devolver una promesa; el SDK no interpreta su resultado. `track(type, context)` devuelve ese resultado en una promesa, o `null` si está detenido. Los tipos explícitos no se deduplican por nombre, URL o tiempo.
+El consumidor recibe `{ type, published, context }`, con fecha UTC en segundos. `getContext()` es síncrono, recibe `{ type: 'page_view', element: null }` para vistas o `{ type: 'click', element }` para clics, con el enlace o botón resuelto y devuelve un objeto o `null` para omitir esa activación. Los callbacks existentes pueden seguir ignorando ese argumento. `emit()` puede ser síncrono o devolver una promesa; el SDK no interpreta su resultado. `track(type, context)` devuelve ese resultado en una promesa, o `null` si está detenido. Los tipos explícitos no se deduplican por nombre, URL o tiempo.
+
+La opción `pages` selecciona las vistas automáticas: `true` (también el valor predeterminado), `false` o `{ include: ['/catalogo/'], exclude: ['/privado/'] }`. Las listas se comparan exactamente con `location.pathname`, sin query ni fragmento, sin normalizar mayúsculas o barras finales ni interpretar comodines. Usar rutas tal como aparecen en `pathname`, incluidos sus caracteres codificados. Omitir `include` permite todas las rutas salvo las excluidas; `include: []` no permite ninguna. La exclusión prevalece. Las reglas no modifican el contexto ni restringen `track()`; una vista excluida no consulta `getContext()`. La configuración se conserva al crear la instancia: modificar los arrays originales no cambia sus reglas.
+
+`clicks` está desactivado al omitirlo o indicar `false`. Para activarlo:
+
+```js
+clicks: {
+    include: [
+        { pages: ['/ofertas/'], selector: 'a[href]' },
+        { selector: '#menu-principal a[href]' },
+        { selector: 'a[href], button', classPrefix: 'promo-' }
+    ],
+    exclude: [{ selector: '.sin-tracking' }]
+}
+```
+
+Cada regla requiere un selector CSS que coincida con el enlace o botón, no solo con su contenedor. `pages` es una lista opcional de rutas exactas de origen; su ausencia permite cualquier ruta. `classPrefix` comprueba el principio de cada clase individual. Dentro de una regla se cumplen todas las condiciones; basta una inclusión y las exclusiones prevalecen. Sin inclusiones no hay captura. Estas rutas son independientes de la opción superior `pages`: desactivar vistas no desactiva clics.
+
+Se capturan enlaces `a[href]` y botones HTML `button`, incluidos hijos como iconos y elementos añadidos posteriormente al DOM. Una activación real por clic principal, teclado nativo o toque produce un evento `click`; el botón central solo cuenta en enlaces. Se excluyen clic derecho, botones deshabilitados y eventos sintéticos (`.click()`/`dispatchEvent`); `track()` sigue disponible. No se registran teclas, foco, movimientos ni valores de formulario. No se cancela la navegación ni se espera al consumidor. No se recorren iframes ni Shadow DOM cerrado. Un selector inválido rechaza la configuración con `invalid_configuration`.
 
 `start()` y `stop()` son idempotentes. Detener retira los listeners y conserva el estado de la vista; no cancela consumidores ya invocados ni reproduce activaciones perdidas mientras estaba parado. Reiniciar no repite una vista ya observada. Cada `id` identifica una instancia durante la vida del documento: recrearlo devuelve la misma configuración/estado, y cargar dos veces la misma versión conserva ese registro. IDs distintos permiten consumidores independientes. No hay identificadores persistentes, cola, reintentos ni distribución npm en esta versión.
 
-La configuración inválida lanza `invalid_configuration`. Los errores de captura automática llegan a `onError` con códigos `context_failed`, `invalid_event` o `consumer_failed`; los envíos explícitos rechazan su promesa y deben manejarse en el llamador. Los errores no incluyen el contexto ni la excepción original del consumidor. Si el propio `onError` falla, se notifica un error global `error_handler_failed`. Un fallo no provoca reintentos ni bloquea navegación.
+La configuración inválida lanza `invalid_configuration`. Los errores de captura automática llegan a `onError(error, {type})` con códigos `context_failed`, `invalid_event` o `consumer_failed`; los envíos explícitos rechazan su promesa y deben manejarse en el llamador. Los errores no incluyen el contexto ni la excepción original del consumidor. Si el propio `onError` falla, se notifica un error global `error_handler_failed`. Un fallo no provoca reintentos ni bloquea navegación.
 
-WordPress conecta este SDK con `wpDruidPulse.send` mediante `assets/frontend-views.js`, únicamente en contenido apto. `wpDruidPulse.tracker` permite acceder a esa instancia. El adaptador emite el evento de ventana `wp-druid-pulse:tracking-result` tras cada resultado del transporte o fallo automático, con `detail: { type, result }` y sin contexto ni actor. Los resultados conservan `accepted`, `rejected` o `unknown`; confirmar aceptación local no acredita entrega a Pulse. La prevención de duplicados del ciclo de vida no deduplica peticiones repetidas al receptor.
+WordPress conecta este SDK con `wpDruidPulse.send` mediante `assets/frontend-views.js`, cuando hay vistas o inclusiones de clics aplicables. Conserva el handle existente `wp-druid-pulse-views` para este adaptador común. `wpDruidPulse.tracker` permite acceder a esa instancia. El adaptador emite el evento de ventana `wp-druid-pulse:tracking-result` tras cada resultado del transporte o fallo automático, con `detail: { type, result }` y sin contexto ni actor. Los resultados conservan `accepted`, `rejected` o `unknown`; confirmar aceptación local no acredita entrega a Pulse. La prevención de duplicados del ciclo de vida no deduplica peticiones repetidas al receptor.
 
 ## Verificación
 
-La versión 0.7.0 se ha comprobado en WordPress 6.9.4/PHP 8.3.31/MySQL 8.0 aislados, con datos sintéticos y prefijo distinto de `wp_`. Incluye 149 comprobaciones HTTP de receptor/vistas, 48 del SDK/adaptador, 30 del transporte JavaScript, 79 de integración, 45 de cola, 26 de administración y 38 de ciclo de vida. La actualización activa desde 0.6.0 conserva ajustes, esquema, evento pendiente y la misma tarea de mantenimiento. El ZIP final se instaló y activó mediante las APIs nativas tras una desinstalación en frío; sus 141 archivos coinciden por hash con las fuentes.
+La versión 0.8.0 se ha comprobado en WordPress 6.9.4/PHP 8.3.31/MySQL 8.0 aislados, con datos sintéticos y prefijo distinto de `wp_`: 190 comprobaciones HTTP de receptor/vistas/clics, 93 del SDK/adaptador, 30 del transporte, 88 de integración, 45 de cola, 26 de administración y 42 de ciclo de vida. Incluyen permisos, nonce, fallo de escritura, fallo/recuperación de migración y retirada de recursos propios.
 
-En Chrome 150 se comprobaron 19 casos con el SDK independiente y WordPress real: carga en segundo plano, primera visibilidad, cambio de pestañas, inicio/parada, reinicialización, eventos adicionales, recarga y retorno real desde BFCache. Se contrastaron en la base de datos cuatro vistas aceptadas desde el navegador, con atribución al administrador/suscriptor correspondiente. La navegación con respuesta retrasada se comprobó en 0.6.0; el transporte conserva ese comportamiento. Esto no acredita todos los navegadores, cierres de proceso, Personalizador de otros temas, plugins de acceso o cachés compartidas/persistentes.
+La actualización activa nativa desde 0.7.0 conserva ajustes, evento pendiente y la misma tarea de mantenimiento, avanzando al esquema 5 con reglas vacías. El ZIP final se instaló y activó mediante las APIs nativas tras desinstalar en frío; sus 148 archivos coinciden por hash. Action Scheduler permanece idéntico a 0.7.0.
 
-Los topes reales con cuatro procesos concurrentes y la convivencia con otra copia de Action Scheduler 4.2.0 se verificaron en 0.5.0; esa dependencia y el almacén permanecen sin cambios.
+Chrome 150 pasa 33 comprobaciones de clics con el SDK y el ZIP instalado en WordPress, más 11 del filtro de páginas con retorno real desde BFCache. Se revisó visualmente la pantalla Clicks y se contrastaron tres confirmaciones del navegador y el clic de navegación con la cola y el mapeador. Ratón, teclado, toque y botón central se prueban con entrada real del navegador. Los topes y concurrencia del almacén, sin cambios, se verificaron en 0.5.0.
 
-Las suites reproducibles están en [tests/README.md](tests/README.md). Las comprobaciones usan respuestas simuladas y una implementación de prueba de la consulta a `wp-druid`; no acreditan conectividad con un despliegue real de Pulse ni todas las combinaciones de plugins o cachés persistentes.
-
-Queda pendiente la revisión visual de las pantallas en navegador. La versión 0.3.0 se comprobó funcionalmente para catálogo, paginación y selección; esta versión comprueba además que la pantalla de Tracking sigue accesible.
+Las suites y sus condiciones están en [tests/README.md](tests/README.md). No acreditan todos los navegadores, constructores, plugins de acceso, cachés compartidas ni conexión con un despliegue real de Pulse. La entrega automática continúa pendiente.
 
 ## Desarrollo y distribución
 
@@ -162,6 +188,6 @@ Repositorio: [dru-id/wp-druid-pulse](https://github.com/dru-id/wp-druid-pulse), 
 
 Mantener los archivos PHP con UTF-8 sin BOM y convenciones de WordPress.
 
-El ZIP 0.7.0 incluye el archivo principal, `src/`, `templates/`, `assets/`, `libraries/` con sus licencias, `uninstall.php` y `readme.txt`, bajo `wp-druid-pulse/`.
+El ZIP 0.8.0 incluye el archivo principal, `src/`, `templates/`, `assets/`, `libraries/` con sus licencias, `uninstall.php` y `readme.txt`, bajo `wp-druid-pulse/`.
 
 La cabecera `Update URI: false` evita que WordPress.org sustituya este plugin de desarrollo por otro que tenga el mismo nombre de carpeta. No se ha añadido un servidor ni un mecanismo propio de actualizaciones.

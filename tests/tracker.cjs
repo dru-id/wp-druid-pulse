@@ -71,6 +71,42 @@ function consumer(b, overrides = {}) {
 	check(another.events.length === 1 && c.events.length === 5, 'Independent consumers must have independent state.');
 	const reload = consumer(browser()); reload.tracker.start();
 	check(reload.events.length === 1, 'A new document counts a legitimate new view.');
+	let capture;
+	const informed = consumer(browser(), { getContext: information => { capture = information; return { provided: true }; } }); informed.tracker.start();
+	check(capture.type === 'page_view' && capture.element === null && informed.events[0].context.provided === true,
+		'The context provider must receive capture information without changing the emitted context.');
+	for (const [pages, expected] of [[true, 1], [false, 0], [{}, 1], [{ include: ['/page'] }, 1],
+		[{ include: ['/other'] }, 0], [{ include: [] }, 0], [{ exclude: ['/other'] }, 1], [{ exclude: ['/page'] }, 0],
+		[{ include: ['/page'], exclude: ['/page'] }, 0], [{ include: ['/page', '/page'], exclude: [] }, 1]]) {
+		const filtered = consumer(browser(), { pages }); filtered.tracker.start();
+		check(filtered.events.length === expected, 'Page inclusion/exclusion must respect explicit empty lists and exclusion priority.');
+	}
+	const query = browser(); query.window.location = new URL('https://consumer.example/page?campaign=x#section');
+	const queryView = consumer(query, { pages: { include: ['/page'] } }); queryView.tracker.start();
+	check(queryView.events.length === 1 && queryView.events[0].context.arbitrary === 'consumer context', 'Page selection must ignore query/fragment without changing consumer context.');
+	for (const path of ['/Page', '/page/', '/page/child']) {
+		const exact = browser(); exact.window.location = new URL('https://consumer.example' + path);
+		const excluded = consumer(exact, { pages: { include: ['/page'] } }); excluded.tracker.start();
+		check(excluded.events.length === 0, 'Page paths must not acquire case folding, slash normalization or prefix semantics.');
+	}
+	const noUrl = browser(); Object.defineProperty(noUrl.window, 'location', { get() { throw new Error('Implicit URL access'); } });
+	const defaultView = consumer(noUrl); defaultView.tracker.start();
+	check(defaultView.events.length === 1, 'Existing integrations without page rules must not require URL access.');
+	let contextCalls = 0;
+	const manualOnly = consumer(browser(), { pages: false, getContext: () => { contextCalls++; return {}; } }); manualOnly.tracker.start();
+	await manualOnly.tracker.track('custom_event', { source: 'manual' });
+	check(contextCalls === 0 && manualOnly.events.length === 1 && manualOnly.events[0].type === 'custom_event', 'Disabling views must not call their context provider or suppress explicit events.');
+	const options = { include: ['/page'] }; const configured = browser(); const snapshot = consumer(configured, { pages: options });
+	options.include.length = 0; snapshot.tracker.start();
+	check(snapshot.events.length === 1, 'Changing the original configuration array must not mutate an existing tracker.');
+	configured.window.fire('pagehide', { persisted: true }); configured.window.fire('pageshow', { persisted: true });
+	check(snapshot.events.length === 2, 'Page rules must preserve legitimate history views.');
+	for (const pages of [null, [], 'all', { includes: ['/page'] }, { include: '/page' }, { exclude: null },
+		{ include: [42] }, { include: Array(1) }, { include: ['/page\0'] }, { include: ['page'] }, { include: ['/page?query=x'] }, { include: ['/page#part'] }, { include: ['/some path'] }]) {
+		const invalid = browser();
+		assert.throws(() => consumer(invalid, { pages }), error => error.code === 'invalid_configuration'); checks++;
+		check(invalid.window.count() + invalid.document.count() === 0, 'Invalid page rules must fail before activating listeners.');
+	}
 
 	const prerender = browser({ prerendering: true }); const p = consumer(prerender); p.tracker.start();
 	check(p.events.length === 0, 'Prerendering must not count a view.');

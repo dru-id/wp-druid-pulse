@@ -44,8 +44,10 @@ final class Plugin {
 		if ( is_admin() ) {
 			require_once __DIR__ . '/ViewCatalog.php';
 			require_once __DIR__ . '/Admin/TrackingPage.php';
+			require_once __DIR__ . '/Admin/ClicksPage.php';
 			require_once __DIR__ . '/Admin/ConnectionPage.php';
 			( new Admin\TrackingPage( $this->plugin_file ) )->register_hooks();
+			( new Admin\ClicksPage( $this->plugin_file ) )->register_hooks();
 			( new Admin\ConnectionPage() )->register_hooks();
 		}
 	}
@@ -79,7 +81,7 @@ final class Plugin {
 		}
 
 		$plugin_meta[] = esc_html__(
-			'Selected page views are captured for signed-in visitors. Configure selection and OAuth under DruID Pulse. Click capture and scheduled delivery to Pulse are not available yet.',
+			'Selected page views and clicks are captured for signed-in visitors. Configure tracking and OAuth under DruID Pulse. Scheduled delivery to Pulse is not available yet.',
 			'wp-druid-pulse'
 		);
 

@@ -39,13 +39,23 @@ function lifecycle_dies( callable $operation ): bool {
 $die_handler = static fn() => static function () { throw new TestWpDie(); };
 add_filter( 'wp_die_handler', $die_handler );
 $plugin = 'wp-druid-pulse/wp-druid-pulse.php';
-$options = array( ViewSelection::OPTION, ConnectionSettings::OPTION, SiteContext::OPTION, 'wp_druid_pulse_schema_version' );
+$options = array( ViewSelection::OPTION, \WP_Druid_Pulse\ClickRules::OPTION, ConnectionSettings::OPTION, SiteContext::OPTION, 'wp_druid_pulse_schema_version' );
 $user_id = 0;
 $foreign_actions = array();
 $exit_code = 0;
 
 try {
 	global $wpdb;
+	$rules_before = \WP_Druid_Pulse\ClickRules::read();
+	update_option( 'wp_druid_pulse_schema_version', 4 );
+	delete_option( \WP_Druid_Pulse\ClickRules::OPTION );
+	$fail_rules = static fn( $sql ) => str_starts_with( $sql, 'INSERT' ) && str_contains( $sql, \WP_Druid_Pulse\ClickRules::OPTION ) ? 'SELECT 1 WHERE 1=0' : $sql;
+	add_filter( 'query', $fail_rules );
+	$failed_rules = Lifecycle::initialize();
+	remove_filter( 'query', $fail_rules );
+	verify( is_wp_error( $failed_rules ) && 4 === get_option( 'wp_druid_pulse_schema_version' ), 'Failed click rule initialization advanced the schema.' );
+	verify( null === Lifecycle::initialize() && 5 === get_option( 'wp_druid_pulse_schema_version' ), 'Click rule initialization did not recover.' );
+	update_option( \WP_Druid_Pulse\ClickRules::OPTION, $rules_before );
 	$store = new EventStore();
 	$user_id = wp_insert_user( array( 'user_login' => 'pulse-lifecycle-' . wp_generate_uuid4(), 'user_pass' => wp_generate_password() ) );
 	verify( is_int( $user_id ), 'Could not create the synthetic user.' );
@@ -58,6 +68,7 @@ try {
 	$foreign_actions[] = as_schedule_single_action( time() + DAY_IN_SECONDS, 'pulse_test_foreign_hook', array(), Scheduler::GROUP );
 	verify( ! in_array( 0, $foreign_actions, true ), 'Could not seed unrelated tasks.' );
 	$foreign_logs = array_map( static fn( $id ) => count( ActionScheduler::logger()->get_logs( $id ) ), $foreign_actions );
+	\WP_Druid_Pulse\ClickRules::save( array( 'include' => array( array( 'selector' => 'a[href]' ) ), 'exclude' => array() ) );
 	$id = SiteContext::id();
 	$before = array_map( 'get_option', $options );
 	$fail_cancel = static fn( $query ) => str_starts_with( $query, 'UPDATE' ) && str_contains( $query, $wpdb->actionscheduler_actions ) ? 'SELECT 1 WHERE 1=0' : $query;
@@ -169,6 +180,7 @@ try {
 	verify( SiteContext::id() !== $id && wp_is_uuid( SiteContext::id(), 4 ), 'Reinstallation did not create a new identity.' );
 	verify( array( 'post_ids' => array(), 'posts_home' => false ) === ViewSelection::read(), 'Reinstallation retained the old selection.' );
 	verify( is_wp_error( ConnectionSettings::ready() ), 'Reinstallation retained credentials.' );
+	verify( array( 'include' => array(), 'exclude' => array() ) === \WP_Druid_Pulse\ClickRules::read(), 'Reinstallation retained click rules.' );
 	echo "Passed {$checks} lifecycle assertions.\n";
 } catch ( Throwable $error ) {
 	fwrite( STDERR, 'FAILED: ' . $error->getMessage() . "\n" );

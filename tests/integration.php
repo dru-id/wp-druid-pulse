@@ -52,7 +52,7 @@ add_filter( 'pre_http_request', $http, 999, 3 );
 add_filter( 'pre_wp_mail', '__return_true' );
 
 try {
-	check( in_array( get_option( 'wp_druid_pulse_schema_version' ), array( 4, '4' ), true ), 'Schema migration did not complete.' );
+	check( in_array( get_option( 'wp_druid_pulse_schema_version' ), array( 5, '5' ), true ), 'Schema migration did not complete.' );
 	$id = SiteContext::id();
 	check( is_string( $id ) && wp_is_uuid( $id, 4 ), 'Missing installation UUID.' );
 	check( null === Lifecycle::initialize() && $id === SiteContext::id(), 'Initialization replaced the UUID.' );
@@ -104,6 +104,17 @@ try {
 	check( 'click' === $click['verb'] && 'link' === $click['object']['objectType'], 'Click interaction is incorrect.' );
 	check( $view['object']['url'] === $click['object']['url'] && $data['target']['url'] === $click['target']['url'], 'Click source and destination were confused.' );
 	check( $view['origin'] === $click['origin'] && $view['actor'] === $click['actor'], 'Common context differs between types.' );
+	foreach ( array( 'tel:+34910000000', 'mailto:test@example.test?subject=Hello' ) as $destination ) {
+		$contact = $data;
+		$contact['target'] = array( 'objectType' => 'link', 'url' => $destination );
+		$mapped = $mapper->map( 'click', $contact, $actor, $time );
+		check( ! is_wp_error( $mapped ) && $destination === $mapped['target']['url'] && $data['page']['url'] === $mapped['object']['url'], 'Contact destination was dropped or replaced the source.' );
+	}
+	foreach ( array( 'javascript:alert(1)', 'tel:', 'tel:/invalid', 'mailto:', 'data:text/plain,hello', 'tel:+34 910', 'https://user:pass@example.test/' ) as $destination ) {
+		$invalid = $data;
+		$invalid['target']['url'] = $destination;
+		check( is_wp_error( $mapper->map( 'click', $invalid, $actor, $time ) ), 'An invalid destination was accepted.' );
+	}
 	unset( $data['target'], $data['link']['key'] );
 	$without_target = $mapper->map( 'click', $data, $actor, $time );
 	check( ! isset( $without_target['target'] ) && ! isset( $without_target['object']['id'] ), 'Unknown target or link ID was invented.' );
@@ -112,9 +123,10 @@ try {
 	$extra = $mapper->map( 'extra_test_type', $data, $actor, $time );
 	check( 'share' === $extra['verb'] && $extra['origin'] === $view['origin'], 'An additional event required changes to the common mapper.' );
 	check( error_is( $mapper->validate_context( 'page_view', $data ), 'wp_druid_pulse_view_context' ), 'A page view accepted client-provided URL/title instead of a reference.' );
-	foreach ( array( 'click', 'extra_test_type', 'unknown' ) as $type ) {
+	foreach ( array( 'extra_test_type', 'unknown' ) as $type ) {
 		check( error_is( $mapper->validate_context( $type, $data ), 'wp_druid_pulse_event_type_unavailable' ), 'An event without a receiver validator was enabled.' );
 	}
+	check( error_is( $mapper->validate_context( 'click', $data ), 'wp_druid_pulse_click_context' ), 'Clicks accepted unsupported context fields.' );
 	$register_type = static function ( EventMapper $registry ) {
 		$registry->register(
 			'receiver_test',
@@ -214,11 +226,11 @@ try {
 	$error = Lifecycle::initialize();
 	remove_filter( 'query', $fail_add );
 	check( is_wp_error( $error ) && 2 === get_option( 'wp_druid_pulse_schema_version' ) && $id === SiteContext::id() && $selection === get_option( ViewSelection::OPTION ), 'Partial migration advanced or overwrote existing state.' );
-	check( null === Lifecycle::initialize() && 4 === get_option( 'wp_druid_pulse_schema_version' ) && $id === SiteContext::id(), 'Migration did not recover idempotently.' );
+	check( null === Lifecycle::initialize() && 5 === get_option( 'wp_druid_pulse_schema_version' ) && $id === SiteContext::id(), 'Migration did not recover idempotently.' );
 	ConnectionSettings::save( $settings );
 	update_option( 'wp_druid_pulse_schema_version', 999 );
 	check( error_is( Lifecycle::initialize(), 'wp_druid_pulse_incompatible_schema' ) && 999 === get_option( 'wp_druid_pulse_schema_version' ), 'A newer schema was downgraded.' );
-	update_option( 'wp_druid_pulse_schema_version', 4 );
+	update_option( 'wp_druid_pulse_schema_version', 5 );
 
 	define( 'WP_DRUID', 'druid' );
 	check( error_is( $resolver->resolve( $user_id ), 'wp_druid_pulse_identity_api' ), 'An active but unavailable identity API fell back to profile data.' );
