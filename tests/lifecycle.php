@@ -39,7 +39,7 @@ function lifecycle_dies( callable $operation ): bool {
 $die_handler = static fn() => static function () { throw new TestWpDie(); };
 add_filter( 'wp_die_handler', $die_handler );
 $plugin = 'wp-druid-pulse/wp-druid-pulse.php';
-$options = array( ViewSelection::OPTION, \WP_Druid_Pulse\ClickRules::OPTION, ConnectionSettings::OPTION, SiteContext::OPTION, 'wp_druid_pulse_schema_version' );
+$options = array( ViewSelection::OPTION, \WP_Druid_Pulse\ClickRules::OPTION, ConnectionSettings::OPTION, SiteContext::OPTION, \WP_Druid_Pulse\DeliveryState::OPTION, 'wp_druid_pulse_schema_version' );
 $user_id = 0;
 $foreign_actions = array();
 $exit_code = 0;
@@ -54,7 +54,7 @@ try {
 	$failed_rules = Lifecycle::initialize();
 	remove_filter( 'query', $fail_rules );
 	verify( is_wp_error( $failed_rules ) && 4 === get_option( 'wp_druid_pulse_schema_version' ), 'Failed click rule initialization advanced the schema.' );
-	verify( null === Lifecycle::initialize() && 5 === get_option( 'wp_druid_pulse_schema_version' ), 'Click rule initialization did not recover.' );
+	verify( null === Lifecycle::initialize() && 6 === get_option( 'wp_druid_pulse_schema_version' ), 'Click rule initialization did not recover.' );
 	update_option( \WP_Druid_Pulse\ClickRules::OPTION, $rules_before );
 	$store = new EventStore();
 	$user_id = wp_insert_user( array( 'user_login' => 'pulse-lifecycle-' . wp_generate_uuid4(), 'user_pass' => wp_generate_password() ) );
@@ -63,9 +63,21 @@ try {
 	$expired = $store->append( 'future_type', $user_id, array( 'value' => 'expired' ), new DateTimeImmutable() );
 	verify( is_string( $event ) && is_string( $expired ), 'Could not seed lifecycle events.' );
 	$row = $store->get( $event );
+	update_option( 'wp_druid_pulse_schema_version', 5 );
+	delete_option( \WP_Druid_Pulse\DeliveryState::OPTION );
+	$wpdb->query( $wpdb->prepare( 'ALTER TABLE %i DROP INDEX delivery, DROP COLUMN delivery_status, DROP COLUMN attempts, DROP COLUMN next_attempt_at, DROP COLUMN last_error', EventStore::table() ) );
+	$fail_delivery_column = static fn( $query ) => str_starts_with( $query, 'ALTER TABLE' ) && str_contains( $query, 'ADD COLUMN last_error' ) ? 'EXPECTED DELIVERY MIGRATION FAILURE' : $query;
+	add_filter( 'query', $fail_delivery_column );
+	$partial = Lifecycle::initialize();
+	remove_filter( 'query', $fail_delivery_column );
+	verify( is_wp_error( $partial ) && 5 === get_option( 'wp_druid_pulse_schema_version' ), 'Partial delivery migration advanced the schema.' );
+	verify( null === Lifecycle::initialize() && 6 === get_option( 'wp_druid_pulse_schema_version' ), 'Delivery migration did not recover idempotently.' );
+	verify( $row === $store->get( $event ) && null === EventStore::verify(), 'Delivery migration changed a pending event or its defaults.' );
 	$wpdb->update( EventStore::table(), array( 'expires_at' => gmdate( 'Y-m-d H:i:s', time() - 1 ) ), array( 'event_id' => $expired ) );
 	$foreign_actions[] = as_schedule_single_action( time() + DAY_IN_SECONDS, Scheduler::CLEANUP_HOOK, array(), 'pulse-test-foreign' );
+	$foreign_actions[] = as_schedule_single_action( time() + DAY_IN_SECONDS, Scheduler::DELIVERY_HOOK, array(), 'pulse-test-foreign' );
 	$foreign_actions[] = as_schedule_single_action( time() + DAY_IN_SECONDS, 'pulse_test_foreign_hook', array(), Scheduler::GROUP );
+	verify( as_schedule_single_action( time() + DAY_IN_SECONDS, Scheduler::DELIVERY_HOOK, array(), Scheduler::GROUP, true ) > 0, 'Could not seed an actual pending delivery task.' );
 	verify( ! in_array( 0, $foreign_actions, true ), 'Could not seed unrelated tasks.' );
 	$foreign_logs = array_map( static fn( $id ) => count( ActionScheduler::logger()->get_logs( $id ) ), $foreign_actions );
 	\WP_Druid_Pulse\ClickRules::save( array( 'include' => array( array( 'selector' => 'a[href]' ) ), 'exclude' => array() ) );
@@ -79,16 +91,19 @@ try {
 	deactivate_plugins( $plugin );
 	verify( ! is_plugin_active( $plugin ) && $before === array_map( 'get_option', $options ), 'Deactivation changed saved data.' );
 	verify( $store->get( $event ) === $row && ! as_has_scheduled_action( Scheduler::CLEANUP_HOOK, array(), Scheduler::GROUP ), 'Deactivation removed queued data or left maintenance pending.' );
+	verify( ! as_has_scheduled_action( Scheduler::WAKE_HOOK, array(), Scheduler::GROUP ) && ! as_has_scheduled_action( Scheduler::DELIVERY_HOOK, array(), Scheduler::GROUP ), 'Deactivation left delivery scheduled.' );
 	verify( null === activate_plugin( $plugin ) && $before === array_map( 'get_option', $options ), 'Reactivation changed saved data.' );
 	verify( $store->get( $event ) === $row && ! in_array( $expired, $store->pending_ids(), true ), 'Reactivation altered context or made expired events eligible.' );
 	$tasks = as_get_scheduled_actions( array( 'hook' => Scheduler::CLEANUP_HOOK, 'group' => Scheduler::GROUP, 'status' => 'pending' ), 'ids' );
 	verify( 1 === count( $tasks ), 'Reactivation duplicated maintenance.' );
+	verify( 1 === count( as_get_scheduled_actions( array( 'hook' => Scheduler::WAKE_HOOK, 'group' => Scheduler::GROUP, 'status' => 'pending' ), 'ids' ) ), 'Reactivation duplicated delivery checks.' );
 	Scheduler::cleanup();
 	verify( 1 === EventStore::usage()['events'], 'Reactivated cleanup did not purge the expired record.' );
 	Scheduler::stop();
 	Scheduler::register_hooks();
 	do_action( 'action_scheduler_ensure_recurring_actions' );
 	verify( as_has_scheduled_action( Scheduler::CLEANUP_HOOK, array(), Scheduler::GROUP ), 'The native recurring-action recovery hook did not restore maintenance.' );
+	verify( as_has_scheduled_action( Scheduler::WAKE_HOOK, array(), Scheduler::GROUP ), 'Native recovery did not restore delivery checks.' );
 	$held_table = EventStore::table() . '_test_held';
 	$wpdb->query( $wpdb->prepare( 'RENAME TABLE %i TO %i', EventStore::table(), $held_table ) );
 	try {
@@ -167,6 +182,9 @@ try {
 	verify( 'keep' === get_option( 'wp_druid_pulse_foreign_marker' ) && 'keep' === get_transient( 'wp_druid_pulse_foreign_token' ), 'Uninstall removed unrelated data.' );
 	verify( null === $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( EventStore::table() ) ) ), 'Uninstall left the event table.' );
 	verify( array() === as_get_scheduled_actions( array( 'hook' => Scheduler::CLEANUP_HOOK, 'group' => Scheduler::GROUP, 'status' => '' ), 'ids' ), 'Uninstall left its own tasks.' );
+	foreach ( array( Scheduler::WAKE_HOOK, Scheduler::DELIVERY_HOOK ) as $hook ) {
+		verify( array() === as_get_scheduled_actions( array( 'hook' => $hook, 'group' => Scheduler::GROUP, 'status' => '' ), 'ids' ), 'Uninstall left delivery tasks.' );
+	}
 	foreach ( $foreign_actions as $index => $action_id ) {
 		verify( 'pending' === ActionScheduler::store()->get_status( $action_id ) && $foreign_logs[ $index ] === count( ActionScheduler::logger()->get_logs( $action_id ) ), 'Cleanup changed unrelated tasks or logs.' );
 	}

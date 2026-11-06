@@ -6,7 +6,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 ?>
 <div class="wrap">
 	<h1><?php esc_html_e( 'DruID Pulse — Connection', 'wp-druid-pulse' ); ?></h1>
-	<p><?php esc_html_e( 'Configure access to Pulse and test OAuth authentication. Selected page views are stored locally; scheduled delivery to Pulse is not available in this version.', 'wp-druid-pulse' ); ?></p>
+	<p><?php esc_html_e( 'Configure access to Pulse and test OAuth authentication. Queued events are delivered in the background using these settings. Delivery requires WP-Cron or an Action Scheduler runner.', 'wp-druid-pulse' ); ?></p>
+	<?php if ( is_wp_error( $delivery ) || '' !== $delivery['error'] ) : ?>
+		<div class="notice notice-warning"><p><?php esc_html_e( 'Delivery has encountered a connection or configuration problem. Check these settings and server access to Pulse. Saving the connection clears its waiting period; accepted local events still expire after seven days.', 'wp-druid-pulse' ); ?>
+			<code><?php echo esc_html( is_wp_error( $delivery ) ? $delivery->get_error_code() : $delivery['error'] ); ?></code>
+		</p></div>
+	<?php endif; ?>
 	<?php if ( '1' === ( $_GET['saved'] ?? null ) ) : ?>
 		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Connection settings saved.', 'wp-druid-pulse' ); ?></p></div>
 	<?php endif; ?>

@@ -131,6 +131,27 @@ try {
 		verify_receiver( ! is_wp_error( $prepared ) && 'test' === $prepared['verb'] && 'fixture' === $prepared['object']['objectType']
 			&& $users[ $i ]->user_email === $prepared['actor']['schemaOrg']['email']['value'], 'The registered type did not prepare through the existing mapper and actor resolver.' );
 	}
+	$connection = \WP_Druid_Pulse\ConnectionSettings::read();
+	\WP_Druid_Pulse\ConnectionSettings::save( array( 'api_url' => 'https://pulse.example/api', 'oauth_url' => 'https://auth.example', 'client_id' => 'synthetic-client', 'client_secret' => 'synthetic-secret', 'auth_method' => 'client_secret_basic', 'scope' => '', 'tenant' => '' ) );
+	$sent_events = array();
+	$delivery_http = static function ( $pre, $args, $url ) use ( &$sent_events ) {
+		if ( str_ends_with( $url, '/oauth2/token' ) ) {
+			$body = array( 'access_token' => 'synthetic.delivery.token', 'token_type' => 'Bearer', 'expires_in' => 3600 );
+		} else {
+			$sent_events[] = json_decode( $args['body'], true );
+			$body = array( 'status' => 200 );
+		}
+		return array( 'headers' => array(), 'body' => wp_json_encode( $body ), 'response' => array( 'code' => 200 ), 'cookies' => array() );
+	};
+	add_filter( 'pre_http_request', $delivery_http, 1000, 3 );
+	try {
+		\WP_Druid_Pulse\Scheduler::deliver();
+		$matching = array_values( array_filter( $sent_events, static fn( $beat ) => $beat['externalId'] === 'wp-druid-pulse:event:' . $result['json']['event_id'] ) );
+		verify_receiver( count( $matching ) === 1 && $matching[0] === $prepared && is_wp_error( $store->get( $result['json']['event_id'] ) ), 'Authenticated HTTP receipt did not reach delivery and confirmed removal with its original actor.' );
+	} finally {
+		remove_filter( 'pre_http_request', $delivery_http, 1000 );
+		\WP_Druid_Pulse\ConnectionSettings::save( $connection );
+	}
 	$refreshed = array( 'Content-Type: application/json', 'X-WP-Nonce: ' . $result['headers']['x-wp-nonce'], 'Origin: ' . $base );
 	verify_receiver( 202 === receiver_request( $endpoint, $jars[1], 'POST', $body, $refreshed )['status'], 'Refreshed nonce or same-origin request failed.' );
 	$spoof_query = receiver_request( add_query_arg( 'user_id', $users[1]->ID, $endpoint ), $jars[0], 'POST', $body, $headers );

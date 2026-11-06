@@ -1,25 +1,25 @@
 === DruID Pulse for WordPress ===
 Requires at least: 6.9
 Requires PHP: 8.3
-Stable tag: 0.8.0
+Stable tag: 0.9.0
 
 Base instalable del plugin independiente de actividad autenticada para DruID Pulse.
 
 == Descripción ==
 
-Versión de desarrollo 0.8.0.
+Versión de desarrollo 0.9.0.
 
 Permite seleccionar y guardar contenidos para páginas vistas desde el menú
 DruID Pulse > Tracking y configurar OAuth2 desde DruID Pulse > Connection.
 Incluye almacén de eventos, mantenimiento mediante Action Scheduler, receptor
 autenticado y un SDK JavaScript independiente con adaptador WordPress para vistas
-y clics seleccionados. La entrega automática a Pulse todavía no está disponible.
+y clics seleccionados, con entrega automática a Pulse en segundo plano.
 La prueba de conexión solicita un token; no envía eventos ni crea identidades.
 
 No requiere wp-druid ni WooCommerce. Guarda esquema, selección, UUID y conexión
 mediante Options API, y un token temporal mediante Transients API. Usa la tabla
 <prefijo>druid_pulse_events y distribuye Action Scheduler 4.2.0 con sus licencias.
-Los eventos individuales usarán POST /identities.
+Los eventos individuales usan POST /identities con OAuth2 y externalId estable.
 
 Requiere WordPress 6.9 y PHP 8.3 o posteriores.
 
@@ -108,8 +108,8 @@ explícita. Las peticiones no siguen redirecciones con las credenciales.
 
 El origen usa el título y la URL pública de WordPress. Su UUID persiste al cambiar
 nombre o dominio; una copia destinada a otra web necesita un UUID diferente.
-El cliente de Pulse está preparado en código; todavía no hay trabajador de entrega.
-Las vistas se guardan localmente hasta su caducidad de 7 días.
+El trabajador entrega los eventos con la conexión actual. Los pendientes caducan
+a los 7 días, incluso durante fallos o desactivación.
 
 == Almacén y mantenimiento ==
 
@@ -128,9 +128,29 @@ no incluyen el espacio de filas e índices. Los vencidos cuentan hasta su purga.
 La inserción rechaza explícitamente saturación, bloqueo ocupado o fallo de BD,
 sin expulsar eventos aceptados, incluso bajo concurrencia.
 
-Action Scheduler recibe tareas sin datos personales. El almacén admite más tipos
-mediante mapeadores. Todavía no hay trabajador de entrega: la retirada tras
-aceptación de Pulse y los reintentos se conectarán con él.
+Action Scheduler recibe tareas sin datos personales. El trabajador admite más
+tipos mediante el registro común, procesa hasta 25 eventos por pasada y respeta
+un presupuesto de tiempo. Comprueba pendientes cada minuto y continúa por tareas,
+con un trabajador activo por instalación. Depende de WP-Cron o un ejecutor AS.
+
+200/201 con cuerpo coherente confirma aceptación remota y retira el evento local.
+Red, timeout, respuesta ambigua, 408, 429 y 5xx reintentan tras 1, 5, 15 y 60
+minutos; luego cada hora, sin prolongar caducidad. Respeta Retry-After mayor.
+Los fallos comunes pausan el conjunto de envíos. Un 401 renueva el token para
+un nuevo intento; autorización/configuración persistentes esperan una hora.
+Connection muestra un código controlado; guardar la conexión despeja esa pausa.
+
+400/413 o contexto inválido quedan fallidos; 409 queda como conflicto sin
+confirmar entrega. No reintentan automáticamente y cuentan para los límites
+hasta caducar. Identidad no disponible, 422 o mapeador/formato desconocidos se
+revisan cada hora. No se inventa identidad ni se guarda la respuesta remota.
+
+El UUID local se envía como externalId estable. Una respuesta perdida puede
+requerir reintento; no se garantiza procesamiento exactamente una vez. Un 409
+puede corresponder a una reserva remota incompleta y se conserva para revisión.
+No hay acción manual de reenvío en esta versión. Un proceso interrumpido deja
+un intento recuperable tras un minuto. Una confirmación persistida pendiente
+de borrado se limpia sin reenviar.
 
 == Recepción autenticada ==
 
@@ -160,13 +180,13 @@ que un usuario autenticado reproduzca sus peticiones válidas.
 
 == Desactivación y eliminación ==
 
-Desactivar conserva los datos propios y cancela el mantenimiento pendiente; una
-ejecución iniciada puede terminar. Reactivar restablece el mantenimiento sin
+Desactivar conserva los datos propios y cancela las tareas propias pendientes; una
+ejecución iniciada puede terminar. Reactivar restablece mantenimiento y entrega sin
 reiniciar datos ni recuperar eventos caducados para envío.
 Eliminar desde la pantalla de plugins de WordPress borra únicamente las opciones
 wp_druid_pulse_view_selection, wp_druid_pulse_schema_version,
 wp_druid_pulse_installation_id, wp_druid_pulse_connection y
-wp_druid_pulse_click_rules, además del transient
+wp_druid_pulse_click_rules y wp_druid_pulse_delivery, además del transient
 wp_druid_pulse_oauth_token, la tabla de eventos y las tareas/registros propios.
 Conserva las tablas compartidas de Action Scheduler y las tareas ajenas.
 Una reinstalación
@@ -186,6 +206,9 @@ UUID y conexión existentes. Los errores de lectura o guardado se muestran sin
 reiniciar los datos.
 La versión 0.8.0 incorpora reglas de clics vacías y avanza al esquema 5,
 conservando los ajustes, eventos y mantenimiento existentes.
+La versión 0.9.0 avanza al esquema 6: añade metadatos de entrega a la tabla,
+estado de pausa común y comprobación periódica. Conserva el contexto y la
+caducidad de los pendientes, que pasan a enviarse con la conexión guardada.
 
 Si la inicialización falla, la activación se interrumpe. Si el plugin ya estaba
 activo, conserva los datos y deja sus funciones en pausa; los usuarios con
@@ -195,6 +218,14 @@ reciente o desconocido: hay que restaurar una versión compatible o revisar los
 metadatos de instalación.
 
 == Registro de cambios ==
+
+= 0.9.0 =
+
+* Entrega automática extensible por POST /identities con OAuth2.
+* Reintentos espaciados, pausa común, conflictos y recuperación tras interrupción.
+* UUID estable como externalId, sin promesa de procesamiento exactamente una vez.
+* Esquema 6 con migración conservadora y retirada de todas las tareas propias.
+* Aviso de conexión y pruebas de trabajadores concurrentes e instalación aislada.
 
 = 0.8.0 =
 

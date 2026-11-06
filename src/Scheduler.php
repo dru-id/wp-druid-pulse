@@ -9,6 +9,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Scheduler {
 	public const GROUP = 'wp-druid-pulse';
 	public const CLEANUP_HOOK = 'wp_druid_pulse_cleanup_events';
+	public const WAKE_HOOK = 'wp_druid_pulse_check_delivery';
+	public const DELIVERY_HOOK = 'wp_druid_pulse_deliver_events';
 
 	public static function ready(): ?\WP_Error {
 		return is_callable( array( '\ActionScheduler', 'is_initialized' ) ) && \ActionScheduler::is_initialized()
@@ -17,17 +19,62 @@ final class Scheduler {
 
 	public static function register_hooks(): void {
 		add_action( self::CLEANUP_HOOK, array( self::class, 'cleanup' ) );
+		add_action( self::WAKE_HOOK, array( self::class, 'wake' ) );
+		add_action( self::DELIVERY_HOOK, array( self::class, 'deliver' ) );
+		add_action( 'action_scheduler_completed_action', array( self::class, 'completed' ) );
 		add_action( 'action_scheduler_ensure_recurring_actions', array( self::class, 'ensure_recurring' ) );
 	}
 
 	public static function ensure_scheduled(): ?\WP_Error {
 		return self::run( static function () {
-			if ( as_has_scheduled_action( self::CLEANUP_HOOK, array(), self::GROUP ) ) {
-				return null;
+			foreach ( array( self::CLEANUP_HOOK => HOUR_IN_SECONDS, self::WAKE_HOOK => MINUTE_IN_SECONDS ) as $hook => $interval ) {
+				if ( as_has_scheduled_action( $hook, array(), self::GROUP ) ) {
+					continue;
+				}
+				$id = as_schedule_recurring_action( time(), $interval, $hook, array(), self::GROUP, true );
+				if ( ! $id && ! as_has_scheduled_action( $hook, array(), self::GROUP ) ) {
+					return self::error();
+				}
 			}
-			$id = as_schedule_recurring_action( time(), HOUR_IN_SECONDS, self::CLEANUP_HOOK, array(), self::GROUP, true );
-			return $id || as_has_scheduled_action( self::CLEANUP_HOOK, array(), self::GROUP ) ? null : self::error();
+			return null;
 		} );
+	}
+
+	public static function wake(): void {
+		if ( ! Lifecycle::is_current() ) {
+			return;
+		}
+		$state = DeliveryState::read();
+		if ( is_wp_error( $state ) ) {
+			throw new \RuntimeException( 'Delivery state is unavailable. Check database access.' );
+		}
+		if ( $state['retry_at'] > time() ) {
+			return;
+		}
+		$ids = ( new EventStore() )->pending_ids( 1 );
+		if ( is_wp_error( $ids ) ) {
+			throw new \RuntimeException( 'Delivery could not read pending events. Check database access.' );
+		}
+		if ( ! $ids || as_has_scheduled_action( self::DELIVERY_HOOK, array(), self::GROUP ) ) {
+			return;
+		}
+		$id = as_enqueue_async_action( self::DELIVERY_HOOK, array(), self::GROUP, true );
+		if ( ! $id && ! as_has_scheduled_action( self::DELIVERY_HOOK, array(), self::GROUP ) ) {
+			throw new \RuntimeException( 'Delivery could not be scheduled. Check Action Scheduler.' );
+		}
+	}
+
+	public static function deliver(): void {
+		require_once __DIR__ . '/DeliveryWorker.php';
+		DeliveryWorker::run();
+	}
+
+	public static function completed( int $id ): void {
+		$action = \ActionScheduler::store()->fetch_action( $id );
+		if ( self::DELIVERY_HOOK === $action->get_hook() && self::GROUP === $action->get_group()
+			&& in_array( plugin_basename( dirname( __DIR__ ) . '/wp-druid-pulse.php' ), get_option( 'active_plugins', array() ), true ) ) {
+			self::wake();
+		}
 	}
 
 	public static function ensure_recurring(): void {
@@ -44,6 +91,10 @@ final class Scheduler {
 		if ( ! Lifecycle::is_current() ) {
 			throw new \RuntimeException( 'DruID Pulse maintenance requires a compatible installation.' );
 		}
+		$accepted = EventStore::purge_accepted();
+		if ( is_wp_error( $accepted ) ) {
+			throw new \RuntimeException( $accepted->get_error_message() );
+		}
 		for ( $batch = 0; $batch < EventStore::MAX_EVENTS / EventStore::CLEANUP_BATCH; ++$batch ) {
 			$count = EventStore::purge_expired();
 			if ( is_wp_error( $count ) ) {
@@ -57,6 +108,9 @@ final class Scheduler {
 
 	public static function stop(): ?\WP_Error {
 		remove_action( self::CLEANUP_HOOK, array( self::class, 'cleanup' ) );
+		remove_action( self::WAKE_HOOK, array( self::class, 'wake' ) );
+		remove_action( self::DELIVERY_HOOK, array( self::class, 'deliver' ) );
+		remove_action( 'action_scheduler_completed_action', array( self::class, 'completed' ) );
 		remove_action( 'action_scheduler_ensure_recurring_actions', array( self::class, 'ensure_recurring' ) );
 		return self::run( static function () {
 			$store = \ActionScheduler::store();
@@ -107,8 +161,15 @@ final class Scheduler {
 
 	private static function action_ids( string $status = '' ): array|\WP_Error {
 		global $wpdb;
-		$ids = as_get_scheduled_actions( array( 'hook' => self::CLEANUP_HOOK, 'group' => self::GROUP, 'status' => $status, 'per_page' => 100, 'orderby' => 'none' ), 'ids' );
-		return '' === $wpdb->last_error ? $ids : self::error();
+		$ids = array();
+		foreach ( array( self::CLEANUP_HOOK, self::WAKE_HOOK, self::DELIVERY_HOOK ) as $hook ) {
+			$found = as_get_scheduled_actions( array( 'hook' => $hook, 'group' => self::GROUP, 'status' => $status, 'per_page' => 100, 'orderby' => 'none' ), 'ids' );
+			if ( '' !== $wpdb->last_error ) {
+				return self::error();
+			}
+			$ids = array_merge( $ids, $found );
+		}
+		return $ids;
 	}
 
 	private static function run( callable $operation ): ?\WP_Error {

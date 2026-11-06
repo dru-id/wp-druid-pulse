@@ -35,6 +35,7 @@ final class ConnectionPage {
 			$this->fail( is_wp_error( $settings ) ? $settings : $application, 500 );
 		}
 		$has_secret = '' !== $settings['client_secret'];
+		$delivery = \WP_Druid_Pulse\DeliveryState::read();
 		unset( $settings['client_secret'] );
 		$save_action = self::SAVE_ACTION;
 		$test_action = self::TEST_ACTION;

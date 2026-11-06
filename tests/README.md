@@ -15,6 +15,7 @@ Ejecutar desde este repositorio, con acceso a la base de datos de prueba:
 ```sh
 WP_TEST_BOOTSTRAP=/ruta/wordpress/wp-load.php php tests/integration.php
 WP_TEST_BOOTSTRAP=/ruta/wordpress/wp-load.php php tests/queue.php
+WP_TEST_BOOTSTRAP=/ruta/wordpress/wp-load.php php tests/delivery.php
 WP_TEST_BOOTSTRAP=/ruta/wordpress/wp-load.php php tests/queue-capacity.php
 WP_TEST_BOOTSTRAP=/ruta/wordpress/wp-load.php php tests/lifecycle.php
 ```
@@ -22,6 +23,8 @@ WP_TEST_BOOTSTRAP=/ruta/wordpress/wp-load.php php tests/lifecycle.php
 `integration.php` intercepta las peticiones HTTP y comprueba los contratos del actor, mapeos, extensibilidad, OAuth, tokens, errores y migración. La API de `wp-druid` se representa con una implementación de prueba de su método de consulta: ejecutar esta suite sin `wp-druid` activo. No sustituye una prueba con el servicio real de Identity/Pulse.
 
 `queue.php` comprueba contexto/fecha originales, resolución actual del actor sin sesión, cambios de conexión e instalación, extensibilidad, errores, bloqueo de inserción, caducidad y ejecución real del mantenimiento mediante Action Scheduler. El HTTP a Pulse se simula. Ejecutar sin `wp-druid` activo: incluye la misma implementación de prueba de su consulta.
+
+`delivery.php` recorre el trabajador real y Action Scheduler con HTTP simulado: aceptación/borrado, identidad actual, backoff, Retry-After, 401, conflictos, respuestas ambiguas, cambio concurrente de conexión, fallo de persistencia, caducidad y continuación. Usa `proc_open` y la fixture CLI `fixtures/delivery-worker.php` para interrumpir realmente un proceso y ejecutar cuatro trabajadores concurrentes. La fixture solo utiliza datos sintéticos; no se copia a MU plugins.
 
 `queue-capacity.php` llena la tabla hasta **10.000 registros y 100 MiB de JSON**, con datos sintéticos y cuatro procesos PHP simultáneos. Requiere `proc_open` disponible y espacio adicional para índices y registros de MySQL. No reduce los topes para probarlos. Al terminar elimina sus datos y usuario de prueba.
 

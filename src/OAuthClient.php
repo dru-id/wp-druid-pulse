@@ -6,6 +6,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once __DIR__ . '/HttpResponse.php';
+
 final class OAuthClient {
 	public function token( array $settings, bool $force = false ): array|\WP_Error {
 		$fingerprint = hash_hmac( 'sha256', wp_json_encode( $settings ), wp_salt( 'auth' ) );
@@ -36,7 +38,7 @@ final class OAuthClient {
 		}
 		$status = wp_remote_retrieve_response_code( $response );
 		if ( 200 !== $status ) {
-			return new \WP_Error( 'wp_druid_pulse_oauth_rejected', sprintf( __( 'OAuth authentication failed (HTTP %d). Check the client credentials, authentication method and scopes.', 'wp-druid-pulse' ), $status ), array( 'http_status' => $status ) );
+			return new \WP_Error( 'wp_druid_pulse_oauth_rejected', sprintf( __( 'OAuth authentication failed (HTTP %d). Check the client credentials, authentication method and scopes.', 'wp-druid-pulse' ), $status ), HttpResponse::error_data( $response ) );
 		}
 		$result = json_decode( wp_remote_retrieve_body( $response ), true );
 		$expires = is_array( $result ) ? ( $result['expires_in'] ?? null ) : null;

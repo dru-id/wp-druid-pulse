@@ -28,6 +28,10 @@ final class EventPreparer {
 		if ( is_wp_error( $actor ) ) {
 			return $actor;
 		}
-		return $this->mapper->map( $event['event_type'], $event['context'], $actor, $published );
+		$beat = $this->mapper->map( $event['event_type'], $event['context'], $actor, $published );
+		if ( ! is_wp_error( $beat ) ) {
+			$beat['externalId'] = 'wp-druid-pulse:event:' . $event_id;
+		}
+		return $beat;
 	}
 }

@@ -27,7 +27,7 @@ final class EventStore {
 			if ( '' !== $wpdb->last_error ) {
 				return self::database_error();
 			}
-			if ( null === $exists ) {
+			if ( null === $exists || ! Lifecycle::is_current() ) {
 				require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 				dbDelta( "CREATE TABLE $table (
 					event_id char(36) NOT NULL,
@@ -39,10 +39,15 @@ final class EventStore {
 					expires_at datetime NOT NULL,
 					context longtext NOT NULL,
 					context_bytes int unsigned NOT NULL,
+					delivery_status varchar(16) NOT NULL DEFAULT 'pending',
+					attempts int unsigned NOT NULL DEFAULT 0,
+					next_attempt_at datetime NOT NULL DEFAULT '1970-01-01 00:00:00',
+					last_error varchar(64) NOT NULL DEFAULT '',
 					PRIMARY KEY  (event_id),
 					KEY expires (expires_at),
 					KEY received (received_at,event_id),
-					KEY capacity (context_bytes)
+					KEY capacity (context_bytes),
+					KEY delivery (delivery_status,next_attempt_at,received_at,event_id)
 				) " . $wpdb->get_charset_collate() . ';' );
 			}
 			return self::verify();
@@ -54,6 +59,7 @@ final class EventStore {
 			global $wpdb;
 			$columns = $wpdb->get_results( $wpdb->prepare( 'SHOW COLUMNS FROM %i', self::table() ), ARRAY_A );
 			$expected = array( 'event_id' => 'char(36)', 'format_version' => 'smallint unsigned', 'event_type' => 'varchar(64)', 'user_id' => 'bigint unsigned', 'published' => 'datetime', 'received_at' => 'datetime', 'expires_at' => 'datetime', 'context' => 'longtext', 'context_bytes' => 'int unsigned' );
+			$expected += array( 'delivery_status' => 'varchar(16)', 'attempts' => 'int unsigned', 'next_attempt_at' => 'datetime', 'last_error' => 'varchar(64)' );
 			if ( '' !== $wpdb->last_error || ! is_array( $columns ) || count( $columns ) !== count( $expected ) ) {
 				return self::database_error();
 			}
@@ -71,7 +77,7 @@ final class EventStore {
 			foreach ( $indexes as $index ) {
 				$keys[ $index['Key_name'] ][ (int) $index['Seq_in_index'] ] = $index['Column_name'];
 			}
-			foreach ( array( 'PRIMARY' => array( 'event_id' ), 'expires' => array( 'expires_at' ), 'received' => array( 'received_at', 'event_id' ), 'capacity' => array( 'context_bytes' ) ) as $name => $fields ) {
+			foreach ( array( 'PRIMARY' => array( 'event_id' ), 'expires' => array( 'expires_at' ), 'received' => array( 'received_at', 'event_id' ), 'capacity' => array( 'context_bytes' ), 'delivery' => array( 'delivery_status', 'next_attempt_at', 'received_at', 'event_id' ) ) as $name => $fields ) {
 				$columns = $keys[ $name ] ?? array();
 				ksort( $columns );
 				if ( array_values( $columns ) !== $fields ) {
@@ -127,7 +133,8 @@ final class EventStore {
 	public function pending_ids( int $limit = 100 ): array|\WP_Error {
 		return self::with_database( static function () use ( $limit ) {
 			global $wpdb;
-			$ids = $wpdb->get_col( $wpdb->prepare( 'SELECT event_id FROM %i WHERE expires_at > %s ORDER BY received_at,event_id LIMIT %d', self::table(), gmdate( 'Y-m-d H:i:s' ), max( 1, min( 1000, $limit ) ) ) );
+			$now = gmdate( 'Y-m-d H:i:s' );
+			$ids = $wpdb->get_col( $wpdb->prepare( "SELECT event_id FROM %i WHERE delivery_status='pending' AND next_attempt_at <= %s AND expires_at > %s ORDER BY received_at,event_id LIMIT %d", self::table(), $now, $now, max( 1, min( 1000, $limit ) ) ) );
 			return '' === $wpdb->last_error ? $ids : self::database_error();
 		} );
 	}
@@ -150,7 +157,7 @@ final class EventStore {
 				return new \WP_Error( 'wp_druid_pulse_event_data', __( 'The queued event context is invalid.', 'wp-druid-pulse' ) );
 			}
 			$row['context'] = $context;
-			foreach ( array( 'format_version', 'user_id', 'context_bytes' ) as $field ) {
+			foreach ( array( 'format_version', 'user_id', 'context_bytes', 'attempts' ) as $field ) {
 				$row[ $field ] = (int) $row[ $field ];
 			}
 			return $row;
@@ -161,6 +168,46 @@ final class EventStore {
 		return self::with_lock( static function () use ( $id ) {
 			global $wpdb;
 			return false === $wpdb->delete( self::table(), array( 'event_id' => $id ), array( '%s' ) ) ? self::database_error() : null;
+		} );
+	}
+
+	public function begin_attempt( string $id, string $worker_lock ): bool|\WP_Error {
+		return self::with_database( static function () use ( $id, $worker_lock ) {
+			global $wpdb;
+			$now = gmdate( 'Y-m-d H:i:s' );
+			$changed = $wpdb->query( $wpdb->prepare(
+				"UPDATE %i SET attempts=attempts+1,next_attempt_at=%s WHERE event_id=%s AND delivery_status='pending'
+				 AND next_attempt_at <= %s AND expires_at > %s AND IS_USED_LOCK(%s)=CONNECTION_ID()",
+				self::table(), gmdate( 'Y-m-d H:i:s', time() + MINUTE_IN_SECONDS ), $id, $now, $now, $worker_lock
+			) );
+			return false === $changed ? self::database_error() : 1 === $changed;
+		} );
+	}
+
+	public function finish_attempt( string $id, string $status, string $reason, int $retry_at, string $worker_lock ): ?\WP_Error {
+		return self::with_database( static function () use ( $id, $status, $reason, $retry_at, $worker_lock ) {
+			global $wpdb;
+			$changed = $wpdb->query( $wpdb->prepare(
+				"UPDATE %i SET delivery_status=%s,last_error=%s,next_attempt_at=%s WHERE event_id=%s
+				 AND delivery_status='pending' AND IS_USED_LOCK(%s)=CONNECTION_ID()",
+				self::table(), $status, $reason, gmdate( 'Y-m-d H:i:s', min( $retry_at, time() + self::RETENTION_SECONDS ) ), $id, $worker_lock
+			) );
+			if ( 1 === $changed ) {
+				return null;
+			}
+			if ( false === $changed ) {
+				return self::database_error();
+			}
+			$exists = $wpdb->get_var( $wpdb->prepare( 'SELECT event_id FROM %i WHERE event_id=%s', self::table(), $id ) );
+			return null === $exists && '' === $wpdb->last_error ? null : self::database_error();
+		} );
+	}
+
+	public static function purge_accepted(): int|\WP_Error {
+		return self::with_lock( static function () {
+			global $wpdb;
+			$count = $wpdb->query( $wpdb->prepare( "DELETE FROM %i WHERE delivery_status='accepted' LIMIT %d", self::table(), self::CLEANUP_BATCH ) );
+			return false === $count ? self::database_error() : $count;
 		} );
 	}
 

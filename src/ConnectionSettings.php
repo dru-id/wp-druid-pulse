@@ -69,14 +69,14 @@ final class ConnectionSettings {
 			return self::invalid_input();
 		}
 		if ( $current === $next ) {
-			return null;
+			return DeliveryState::reset();
 		}
 		update_option( self::OPTION, $next, false );
 		if ( get_option( self::OPTION, null ) !== $next ) {
 			return new \WP_Error( 'wp_druid_pulse_connection_save', __( 'The connection settings could not be saved. Check database access and try again.', 'wp-druid-pulse' ) );
 		}
 		delete_transient( self::TOKEN_TRANSIENT );
-		return null;
+		return DeliveryState::reset();
 	}
 
 	private static function valid( array $value ): bool {

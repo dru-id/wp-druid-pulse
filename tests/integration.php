@@ -52,7 +52,7 @@ add_filter( 'pre_http_request', $http, 999, 3 );
 add_filter( 'pre_wp_mail', '__return_true' );
 
 try {
-	check( in_array( get_option( 'wp_druid_pulse_schema_version' ), array( 5, '5' ), true ), 'Schema migration did not complete.' );
+	check( in_array( get_option( 'wp_druid_pulse_schema_version' ), array( 6, '6' ), true ), 'Schema migration did not complete.' );
 	$id = SiteContext::id();
 	check( is_string( $id ) && wp_is_uuid( $id, 4 ), 'Missing installation UUID.' );
 	check( null === Lifecycle::initialize() && $id === SiteContext::id(), 'Initialization replaced the UUID.' );
@@ -226,11 +226,11 @@ try {
 	$error = Lifecycle::initialize();
 	remove_filter( 'query', $fail_add );
 	check( is_wp_error( $error ) && 2 === get_option( 'wp_druid_pulse_schema_version' ) && $id === SiteContext::id() && $selection === get_option( ViewSelection::OPTION ), 'Partial migration advanced or overwrote existing state.' );
-	check( null === Lifecycle::initialize() && 5 === get_option( 'wp_druid_pulse_schema_version' ) && $id === SiteContext::id(), 'Migration did not recover idempotently.' );
+	check( null === Lifecycle::initialize() && 6 === get_option( 'wp_druid_pulse_schema_version' ) && $id === SiteContext::id(), 'Migration did not recover idempotently.' );
 	ConnectionSettings::save( $settings );
 	update_option( 'wp_druid_pulse_schema_version', 999 );
 	check( error_is( Lifecycle::initialize(), 'wp_druid_pulse_incompatible_schema' ) && 999 === get_option( 'wp_druid_pulse_schema_version' ), 'A newer schema was downgraded.' );
-	update_option( 'wp_druid_pulse_schema_version', 5 );
+	update_option( 'wp_druid_pulse_schema_version', 6 );
 
 	define( 'WP_DRUID', 'druid' );
 	check( error_is( $resolver->resolve( $user_id ), 'wp_druid_pulse_identity_api' ), 'An active but unavailable identity API fell back to profile data.' );

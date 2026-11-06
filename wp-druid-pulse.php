@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: DruID Pulse for WordPress
- * Description: Independent DruID Pulse integration with authenticated page views and clicks, OAuth settings and an extensible browser tracker. Scheduled delivery is not available yet.
- * Version: 0.8.0
+ * Description: Independent DruID Pulse integration with authenticated page views and clicks, OAuth, an extensible browser tracker and scheduled event delivery.
+ * Version: 0.9.0
  * Requires at least: 6.9
  * Requires PHP: 8.3
  * Author: Genetsis
@@ -18,6 +18,7 @@ require_once __DIR__ . '/libraries/action-scheduler/action-scheduler.php';
 require_once __DIR__ . '/src/ViewSelection.php';
 require_once __DIR__ . '/src/ClickRules.php';
 require_once __DIR__ . '/src/ConnectionSettings.php';
+require_once __DIR__ . '/src/DeliveryState.php';
 require_once __DIR__ . '/src/SiteContext.php';
 require_once __DIR__ . '/src/EventStore.php';
 require_once __DIR__ . '/src/Scheduler.php';

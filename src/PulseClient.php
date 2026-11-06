@@ -7,6 +7,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 require_once __DIR__ . '/OAuthClient.php';
+require_once __DIR__ . '/HttpResponse.php';
 
 final class PulseClient {
 	public function send( array $beat ): array|\WP_Error {
@@ -37,11 +38,11 @@ final class PulseClient {
 			delete_transient( ConnectionSettings::TOKEN_TRANSIENT );
 		}
 		if ( ! in_array( $status, array( 200, 201 ), true ) ) {
-			return new \WP_Error( 'wp_druid_pulse_http', sprintf( __( 'Pulse returned HTTP %d.', 'wp-druid-pulse' ), $status ), array( 'http_status' => $status ) );
+			return new \WP_Error( 'wp_druid_pulse_http', sprintf( __( 'Pulse returned HTTP %d.', 'wp-druid-pulse' ), $status ), HttpResponse::error_data( $response ) );
 		}
 		$result = json_decode( wp_remote_retrieve_body( $response ), true );
 		if ( ! is_array( $result ) || ( $result['status'] ?? null ) !== $status ) {
-			return new \WP_Error( 'wp_druid_pulse_response', __( 'Pulse returned an unexpected response. Its processing outcome is unknown.', 'wp-druid-pulse' ), array( 'http_status' => $status ) );
+			return new \WP_Error( 'wp_druid_pulse_response', __( 'Pulse returned an unexpected response. Its processing outcome is unknown.', 'wp-druid-pulse' ), HttpResponse::error_data( $response ) );
 		}
 		return array( 'status' => $status );
 	}
