@@ -26,7 +26,7 @@ final class ViewCatalog {
 		return 'posts' === get_option( 'show_on_front' );
 	}
 
-	public function page( array $selection, array $filters ): array {
+	public function page( array $selection, array $filters, bool $exclude_password_protected = false ): array {
 		if ( 'unavailable' === $filters['selection'] ) {
 			return $this->unavailable_page( $selection, $filters );
 		}
@@ -44,6 +44,9 @@ final class ViewCatalog {
 			'update_post_meta_cache' => false,
 			'update_post_term_cache' => false,
 		);
+		if ( $exclude_password_protected ) {
+			$args['has_password'] = false;
+		}
 
 		if ( 'selected' === $filters['selection'] ) {
 			$args['post__in'] = $selection['post_ids'] ?: array( 0 );

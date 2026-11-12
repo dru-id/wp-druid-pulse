@@ -5,9 +5,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 ?>
 <div class="wrap">
-	<h1><?php esc_html_e( 'DruID Pulse — Tracking', 'wp-druid-pulse' ); ?></h1>
-	<p><?php esc_html_e( 'Choose the content whose page views you want to track. Click selection is independent of this list.', 'wp-druid-pulse' ); ?></p>
-	<div class="notice notice-info inline"><p><?php esc_html_e( 'Selected pages record views from signed-in visitors when ready and visible. Events are delivered to Pulse in the background; pending events expire after 7 days. Configure clicks independently under Clicks, and delivery credentials under Connection.', 'wp-druid-pulse' ); ?></p></div>
+	<h1><?php esc_html_e( 'DruID Pulse — Page views', 'wp-druid-pulse' ); ?></h1>
+	<p><?php esc_html_e( 'Select the pages that should record a view when a signed-in visitor opens them. Configure links and buttons under Clicks.', 'wp-druid-pulse' ); ?></p>
 	<?php if ( '1' === ( $_GET['saved'] ?? null ) ) : ?>
 		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Selection saved.', 'wp-druid-pulse' ); ?></p></div>
 	<?php endif; ?>
@@ -34,7 +33,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 		</p>
 	</form>
 	<?php if ( 'unavailable' === $filters['selection'] ) : ?>
-		<p><?php esc_html_e( 'These references remain saved but cannot produce page views. Uncheck them to remove them. Content restored with the same ID keeps its selection.', 'wp-druid-pulse' ); ?></p>
+		<p><?php esc_html_e( 'These selections are currently unavailable and do not record views. Uncheck them to remove them.', 'wp-druid-pulse' ); ?></p>
 	<?php endif; ?>
 	<form id="wp-druid-pulse-selection" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 		<input type="hidden" name="action" value="<?php echo esc_attr( $save_action ); ?>">
@@ -60,7 +59,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 					</th>
 					<td>
 						<label for="pulse-row-<?php echo esc_attr( (string) $row['id'] ); ?>"><strong><?php echo esc_html( $row['title'] ); ?></strong></label>
-						<?php if ( ! $is_home ) : ?><br><span class="description"><?php echo esc_html( sprintf( __( 'ID: %d', 'wp-druid-pulse' ), $row['id'] ) ); ?></span><?php endif; ?>
 						<?php foreach ( $row['labels'] as $label ) : ?><br><span class="description"><?php echo esc_html( $label ); ?></span><?php endforeach; ?>
 					</td>
 					<td><?php echo esc_html( $row['type'] ); ?></td>

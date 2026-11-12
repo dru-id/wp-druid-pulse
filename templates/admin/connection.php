@@ -6,10 +6,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 ?>
 <div class="wrap">
 	<h1><?php esc_html_e( 'DruID Pulse — Connection', 'wp-druid-pulse' ); ?></h1>
-	<p><?php esc_html_e( 'Configure access to Pulse and test OAuth authentication. Queued events are delivered in the background using these settings. Delivery requires WP-Cron or an Action Scheduler runner.', 'wp-druid-pulse' ); ?></p>
+	<p><?php esc_html_e( 'Enter your Pulse connection details, save them and test authentication.', 'wp-druid-pulse' ); ?></p>
 	<?php if ( is_wp_error( $delivery ) || '' !== $delivery['error'] ) : ?>
-		<div class="notice notice-warning"><p><?php esc_html_e( 'Delivery has encountered a connection or configuration problem. Check these settings and server access to Pulse. Saving the connection clears its waiting period; accepted local events still expire after seven days.', 'wp-druid-pulse' ); ?>
-			<code><?php echo esc_html( is_wp_error( $delivery ) ? $delivery->get_error_code() : $delivery['error'] ); ?></code>
+		<div class="notice notice-warning"><p><?php esc_html_e( 'Delivery needs attention. Review and save these settings, then test authentication.', 'wp-druid-pulse' ); ?>
+			<a href="<?php echo esc_url( admin_url( 'admin.php?page=wp-druid-pulse-diagnostics' ) ); ?>"><?php esc_html_e( 'View delivery status', 'wp-druid-pulse' ); ?></a>
 		</p></div>
 	<?php endif; ?>
 	<?php if ( '1' === ( $_GET['saved'] ?? null ) ) : ?>
@@ -18,10 +18,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	<?php if ( '1' === ( $_GET['tested'] ?? null ) ) : ?>
 		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'OAuth authentication succeeded. No identities or events were sent; this does not verify delivery to Pulse.', 'wp-druid-pulse' ); ?></p></div>
 	<?php endif; ?>
-	<h2><?php esc_html_e( 'WordPress origin', 'wp-druid-pulse' ); ?></h2>
-	<p><?php echo esc_html( $application['displayName'] ?? '' ); ?> — <?php echo esc_html( $application['url'] ); ?></p>
-	<p><strong><?php esc_html_e( 'Installation ID:', 'wp-druid-pulse' ); ?></strong> <code><?php echo esc_html( $application['id'] ); ?></code></p>
-	<p class="description"><?php esc_html_e( 'The name and URL come from WordPress General Settings. The installation ID stays the same when they change. A database copy intended as a separate site needs a new installation ID before tracking is enabled.', 'wp-druid-pulse' ); ?></p>
+	<p><strong><?php esc_html_e( 'Site shown in Pulse:', 'wp-druid-pulse' ); ?></strong> <?php echo esc_html( $application['displayName'] ?? '' ); ?> — <?php echo esc_html( $application['url'] ); ?>
+		<a href="<?php echo esc_url( admin_url( 'options-general.php' ) ); ?>"><?php esc_html_e( 'Edit site name and address', 'wp-druid-pulse' ); ?></a></p>
 	<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 		<input type="hidden" name="action" value="<?php echo esc_attr( $save_action ); ?>">
 		<?php wp_nonce_field( $save_action ); ?>
@@ -51,17 +49,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 			</td></tr>
 			<tr><th scope="row"><label for="pulse-scope"><?php esc_html_e( 'OAuth scopes (optional)', 'wp-druid-pulse' ); ?></label></th><td>
 				<input class="regular-text" id="pulse-scope" name="scope" type="text" value="<?php echo esc_attr( $settings['scope'] ); ?>">
-				<p class="description"><?php esc_html_e( 'Space-separated scopes for this client. Leave empty to use the authorization server default.', 'wp-druid-pulse' ); ?></p>
+				<p class="description"><?php esc_html_e( 'Leave empty unless your authorization server requires specific scopes.', 'wp-druid-pulse' ); ?></p>
 			</td></tr>
 			<tr><th scope="row"><label for="pulse-tenant"><?php esc_html_e( 'Pulse tenant (optional)', 'wp-druid-pulse' ); ?></label></th><td>
 				<input class="regular-text" id="pulse-tenant" name="tenant" type="text" value="<?php echo esc_attr( $settings['tenant'] ); ?>">
-				<p class="description"><?php esc_html_e( 'Only fill in if the Pulse endpoint requires an X-Tenant header. This is not the WordPress installation ID.', 'wp-druid-pulse' ); ?></p>
+				<p class="description"><?php esc_html_e( 'Only fill in if your Pulse connection requires a tenant.', 'wp-druid-pulse' ); ?></p>
 			</td></tr>
 		</table>
 		<?php submit_button( __( 'Save connection', 'wp-druid-pulse' ) ); ?>
 	</form>
 	<h2><?php esc_html_e( 'Test saved connection', 'wp-druid-pulse' ); ?></h2>
-	<p><?php esc_html_e( 'Save changes first. This test requests a fresh OAuth token using the saved settings; it does not send an event.', 'wp-druid-pulse' ); ?></p>
+	<p><?php esc_html_e( 'Save changes first. This checks authentication with the saved settings; it does not send events.', 'wp-druid-pulse' ); ?></p>
 	<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 		<input type="hidden" name="action" value="<?php echo esc_attr( $test_action ); ?>">
 		<?php wp_nonce_field( $test_action ); ?>

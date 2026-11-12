@@ -14,3 +14,4 @@
 .pulse-diagnostic-table td:nth-child(4) { width: 29%; }
 .pulse-diagnostic-table code { background: transparent; padding: 0; }
 .pulse-diagnostics .tablenav .page-numbers { display: inline-block; padding: 6px 10px; }
+.pulse-diagnostics summary { cursor: pointer; margin: 8px 0; }

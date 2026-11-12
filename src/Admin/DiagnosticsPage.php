@@ -2,7 +2,7 @@
 
 namespace WP_Druid_Pulse\Admin;
 
-use WP_Druid_Pulse\{ClickRules, ConnectionSettings, DeliveryState, EventStore, Lifecycle, Scheduler, ViewSelection};
+use WP_Druid_Pulse\{ClickRules, ConnectionSettings, DeliveryState, EventStore, Lifecycle, Scheduler, SiteContext, ViewSelection};
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -33,7 +33,7 @@ final class DiagnosticsPage {
 
 	public function enqueue( string $screen ): void {
 		if ( in_array( $screen, $this->screens, true ) ) {
-			wp_enqueue_style( 'wp-druid-pulse-diagnostics', plugins_url( 'assets/diagnostics.css', $this->plugin_file ), array(), '0.10.0' );
+			wp_enqueue_style( 'wp-druid-pulse-diagnostics', plugins_url( 'assets/diagnostics.css', $this->plugin_file ), array(), '0.10.1' );
 		}
 	}
 
@@ -58,6 +58,7 @@ final class DiagnosticsPage {
 		$schema = get_option( 'wp_druid_pulse_schema_version', null );
 		$schema = is_scalar( $schema ) && ctype_digit( (string) $schema ) ? (string) $schema : __( 'Unavailable', 'wp-druid-pulse' );
 		$tasks = $this->tasks();
+		$application = SiteContext::application();
 		$scheduler_version = is_callable( array( '\ActionScheduler_Versions', 'instance' ) ) ? \ActionScheduler_Versions::instance()->latest_version() : false;
 		$feedback = $this->feedback();
 		$action = self::ACTION;
@@ -171,7 +172,7 @@ final class DiagnosticsPage {
 		$message = match ( $this->query_string( 'result' ) ) {
 			'scheduled' => __( 'Delivery was scheduled in the background. This does not confirm that events were sent.', 'wp-druid-pulse' ),
 			'already_scheduled' => __( 'A delivery task is already pending or running.', 'wp-druid-pulse' ),
-			'paused' => __( 'The common delivery pause is active. The periodic check will resume delivery when due.', 'wp-druid-pulse' ),
+			'paused' => __( 'Delivery is paused. It will resume automatically when due.', 'wp-druid-pulse' ),
 			'empty' => __( 'No events are eligible for delivery now. Waiting events keep their retry dates.', 'wp-druid-pulse' ),
 			'cleaned' => __( 'Maintenance completed. Expired records and a batch of accepted records were removed; live pending events were preserved.', 'wp-druid-pulse' ),
 			'unchanged' => __( 'No events were requeued. The selection is stale, expired or no longer failed.', 'wp-druid-pulse' ),
@@ -187,12 +188,12 @@ final class DiagnosticsPage {
 
 	private function state_labels(): array {
 		return array(
-			'ready' => __( 'Pending · eligible', 'wp-druid-pulse' ),
-			'waiting' => __( 'Pending · waiting', 'wp-druid-pulse' ),
+			'ready' => __( 'Ready to send', 'wp-druid-pulse' ),
+			'waiting' => __( 'Waiting to retry', 'wp-druid-pulse' ),
 			'failed' => __( 'Failed', 'wp-druid-pulse' ),
 			'conflict' => __( 'Conflict · 409', 'wp-druid-pulse' ),
 			'expired' => __( 'Expired', 'wp-druid-pulse' ),
-			'accepted' => __( 'Accepted · awaiting deletion', 'wp-druid-pulse' ),
+			'accepted' => __( 'Delivered · awaiting cleanup', 'wp-druid-pulse' ),
 			'unknown' => __( 'Unknown state', 'wp-druid-pulse' ),
 		);
 	}

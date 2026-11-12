@@ -23,8 +23,8 @@ final class TrackingPage {
 	}
 
 	public function add_menu(): void {
-		$this->hook_suffix = add_menu_page( __( 'DruID Pulse — Tracking', 'wp-druid-pulse' ), 'DruID Pulse', 'manage_options', self::SLUG, array( $this, 'render' ), 'dashicons-chart-area' );
-		add_submenu_page( self::SLUG, __( 'Tracking', 'wp-druid-pulse' ), __( 'Tracking', 'wp-druid-pulse' ), 'manage_options', self::SLUG, array( $this, 'render' ) );
+		$this->hook_suffix = add_menu_page( __( 'DruID Pulse — Page views', 'wp-druid-pulse' ), 'DruID Pulse', 'manage_options', self::SLUG, array( $this, 'render' ), 'dashicons-chart-area' );
+		add_submenu_page( self::SLUG, __( 'Page views', 'wp-druid-pulse' ), __( 'Page views', 'wp-druid-pulse' ), 'manage_options', self::SLUG, array( $this, 'render' ) );
 	}
 
 	public function enqueue_assets( string $hook ): void {

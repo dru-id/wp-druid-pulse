@@ -4,7 +4,7 @@ Plugin independiente para enviar a DruID Pulse actividad de consumidores autenti
 
 ## Estado
 
-Versión de desarrollo **0.10.0**. Permite seleccionar contenidos para páginas vistas desde **DruID Pulse → Tracking** y configurar/probar la autenticación OAuth2 desde **DruID Pulse → Connection**.
+Versión de desarrollo **0.10.1**. Permite seleccionar contenidos para páginas vistas desde **DruID Pulse → Page views** y configurar/probar la autenticación OAuth2 desde **DruID Pulse → Connection**.
 
 Captura vistas del contenido seleccionado para visitantes autenticados mediante un SDK JavaScript independiente y un adaptador WordPress. Incluye almacén de eventos, mantenimiento mediante Action Scheduler, receptor autenticado y transporte desde el navegador. Captura también enlaces y botones seleccionados desde **DruID Pulse → Clicks**. Entrega los eventos en segundo plano a Pulse. Los pendientes se guardan localmente y caducan a los 7 días, incluidos los fallidos. La comprobación de conexión solicita un token OAuth; no crea identidades ni envía eventos.
 
@@ -123,11 +123,11 @@ Los hooks internos, sin argumentos y en `wp-druid-pulse`, son `wp_druid_pulse_ch
 
 ## Configurar vistas
 
-La pantalla **DruID Pulse → Tracking** requiere `manage_options`, igual que los ajustes generales de WordPress. Los formularios comprueban además un nonce.
+La pantalla **DruID Pulse → Page views** requiere `manage_options`, igual que los ajustes generales de WordPress. Los formularios comprueban además un nonce.
 
 - La selección inicial está vacía. El catálogo incluye páginas, entradas y contenidos publicados de tipos públicos visibles en el frontend; excluye adjuntos, contenidos no publicados y otros archivos o rutas especiales.
 - La portada estática y la página de entradas se identifican en su propia fila. La portada de últimas entradas tiene una fila específica. Cambiar la asignación de portada o blog no selecciona automáticamente otro contenido.
-- La búsqueda por título, los filtros y la paginación permiten localizar contenidos. **Save selection** modifica únicamente las filas visibles y conserva las selecciones de otras páginas. Se avisa antes de abandonar cambios sin guardar.
+- La búsqueda por título, los filtros y la paginación de 20 contenidos permiten localizar páginas. **Save selection** modifica únicamente las filas visibles y conserva las selecciones de otras páginas. Se avisa antes de abandonar cambios sin guardar.
 - Las selecciones siguen el ID, por lo que sobreviven a cambios de título o URL. Los contenidos nuevos y los descendientes quedan desmarcados.
 - **Unavailable selections** muestra las referencias seleccionadas que dejaron de estar disponibles y permite retirarlas. Si el contenido vuelve a estar disponible con el mismo ID, conserva la selección.
 
@@ -139,7 +139,15 @@ El navegador envía referencia y fecha del hecho. Al recibir, WordPress obtiene 
 
 ## Configurar clics
 
-**DruID Pulse → Clicks** requiere `manage_options` y nonce. Añadir filas de inclusión/exclusión, un selector CSS y, si interesa, un prefijo de clase. Elegir todas las páginas del frontend o IDs específicos del catálogo; `home:posts` representa la portada de últimas entradas. Se admiten varios IDs separados por comas. La elección no depende de qué vistas estén seleccionadas. Las referencias se resuelven por ID en PHP antes de configurar el SDK; los enlaces simples `?p=123` no amplían una regla a otros contenidos.
+**DruID Pulse → Clicks** requiere `manage_options` y nonce. Para registrar todos los enlaces y botones de una página:
+
+1. Pulsar **Add rule** y dejar **Track** y **All links and buttons**.
+2. En **Selected pages**, pulsar **Choose pages**, buscar por título y marcar las páginas. El selector muestra también el tipo de contenido y su URL.
+3. Aplicar con **Use selected pages** y guardar con **Save click rules**.
+
+También se puede elegir solo enlaces, solo botones o un selector CSS propio, como `#main-menu a[href]`. El filtro opcional por prefijo de clase está desplegable. **Entire website** aplica la regla a todas las páginas compatibles del frontend; **Exclude** crea una exclusión, que tiene prioridad sobre las inclusiones. La elección es independiente de las vistas.
+
+El editor muestra 20 reglas por página y conserva los cambios al pasar de una a otra; guardar aplica el conjunto completo. El buscador consulta 20 contenidos por página y conserva las selecciones entre búsquedas. No es necesario conocer los IDs de WordPress: se guardan internamente para conservar la asociación al cambiar títulos o URLs. Las referencias que dejan de estar disponibles siguen visibles y pueden retirarse. El selector no ofrece contenidos sin publicar ni protegidos con contraseña. Los enlaces simples `?p=123` siguen resolviendo el ámbito del contenido correcto.
 
 Se recoge la etiqueta (`aria-label`, texto o atributo `title`) y el destino conocido del enlace. No se inventan IDs de enlaces ni destinos de botones. Se admiten destinos HTTP(S), `tel:` y `mailto:`; otros protocolos no se añaden como destino. El objeto conserva la URL de origen; el destino HTTP(S) se representa como `page`, y teléfono/correo como `link`. El plugin admite URLs de hasta 1024 bytes UTF-8, dentro del máximo de longitud de Pulse; las validaciones también rechazan espacios/control, credenciales en URL y escapes porcentuales incompletos. Aceptar `tel:` en un despliegue de Pulse requiere su validador compatible; esta versión no despliega cambios en Pulse.
 
@@ -191,6 +199,8 @@ WordPress conecta este SDK con `wpDruidPulse.send` mediante `assets/frontend-vie
 
 **DruID Pulse → Diagnostics** requiere `manage_options`. Muestra versiones/esquema, configuración de captura y conexión, tareas periódicas, pausa común y la cola actual. Configuración completa no significa conexión remota comprobada; la pantalla no solicita tokens ni envía eventos. Deshabilitar el arranque automático de WP-Cron tampoco acredita ausencia de un ejecutor externo.
 
+Los identificadores, versiones y tareas están bajo **Technical details and scheduled tasks**; el Installation ID se conserva allí para soporte. En Connection solo se muestran el nombre y la dirección del sitio que identifican la aplicación en Pulse.
+
 Los contadores separan pendientes elegibles, pendientes en espera, fallidos, conflictos, caducados y aceptados pendientes de borrado. La pausa común se incluye al calcular la elegibilidad y los caducados tienen precedencia sobre su estado anterior. El uso incluye todos los registros retenidos y sus bytes de contexto. Se indica cuándo se recibió el pendiente vigente más antiguo. No se mantiene un histórico de enviados ni de pérdidas.
 
 El listado se filtra por estado/tipo y pagina 25 registros. Solo muestra UUID local, tipo, fechas, estado, intentos y explicaciones controladas del último error; no actor, identificador de usuario, contexto, URLs, títulos ni respuestas remotas. Las fechas se presentan en la zona horaria de WordPress. Los registros desaparecen con la entrega confirmada o el mantenimiento y siguen sujetos a los siete días de retención. El enlace a Action Scheduler permite revisar sus tareas y logs con su retención propia: una tarea completada puede haber programado un reintento, sin confirmar entrega.
@@ -204,6 +214,10 @@ Las acciones requieren POST y nonce:
 La pantalla sigue disponible en modo de consulta si falla la inicialización; las acciones se bloquean cuando instalación, almacén, estado de entrega o planificador no son compatibles. No permite vaciar la cola ni editar eventos. Esta versión conserva el esquema 6 y los formatos persistidos de 0.9.0.
 
 ## Verificación
+
+La revisión 0.10.1 se ha validado en WordPress 6.9.4/PHP 8.3.31/MySQL 8.0 y Chrome 150: 28 comprobaciones HTTP del nuevo editor/buscador, 19 de navegador y contraste de las reglas guardadas en base de datos. Incluyen búsquedas paginadas, permisos, selección entre resultados, cancelación, guardado desde la última página, 220 reglas sin truncamiento y captura real de un clic con la nueva selección. También pasan las regresiones existentes de administración (29), receptor/vistas/clics (191) y diagnóstico (101). El SDK, el transporte y el esquema no cambian; las verificaciones de entrega y ciclo de vida siguientes corresponden a 0.10.0.
+
+El ZIP 0.10.1 se ha instalado con las APIs nativas sobre 0.10.0 activo: conserva todas las opciones propias y sus 156 archivos instalados coinciden con el paquete. La revisión se hizo en un WordPress desechable separado de la demo manual.
 
 La versión 0.10.0 se ha comprobado en WordPress 6.9.4/PHP 8.3.31/MySQL 8.0 aislados, con datos sintéticos y prefijo distinto de `wp_`: 191 comprobaciones HTTP de receptor/vistas/clics, 143 de entrega, 88 de integración, 45 de cola, 29 de administración y 53 de ciclo de vida. Incluyen el recorrido autenticado REST → cola → entrega simulada → borrado, reintentos, conflictos, cambio concurrente de conexión, fallos de escritura, migración interrumpida, un proceso terminado durante el envío y cuatro trabajadores concurrentes.
 
@@ -220,6 +234,6 @@ Repositorio: [dru-id/wp-druid-pulse](https://github.com/dru-id/wp-druid-pulse), 
 
 Mantener los archivos PHP con UTF-8 sin BOM y convenciones de WordPress.
 
-El ZIP 0.10.0 incluye el archivo principal, `src/`, `templates/`, `assets/`, `libraries/` con sus licencias, `uninstall.php` y `readme.txt`, bajo `wp-druid-pulse/`.
+El ZIP 0.10.1 incluye el archivo principal, `src/`, `templates/`, `assets/`, `libraries/` con sus licencias, `uninstall.php` y `readme.txt`, bajo `wp-druid-pulse/`.
 
 La cabecera `Update URI: false` evita que WordPress.org sustituya este plugin de desarrollo por otro que tenga el mismo nombre de carpeta. No se ha añadido un servidor ni un mecanismo propio de actualizaciones.

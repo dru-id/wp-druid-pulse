@@ -107,7 +107,7 @@ try {
 	$delivery['error'] = 'wp_druid_pulse_http_403';
 	update_option( \WP_Druid_Pulse\DeliveryState::OPTION, $delivery, false );
 	$notice = request( $page, $jars[0] );
-	check_http( str_contains( $notice['body'], 'wp_druid_pulse_http_403' ) && ! str_contains( $notice['body'], 'http.fixture.token' ), 'Connection recovery notice is absent or leaks a token.' );
+	check_http( str_contains( $notice['body'], 'Delivery needs attention.' ) && str_contains( $notice['body'], 'admin.php?page=wp-druid-pulse-diagnostics' ) && ! str_contains( $notice['body'], 'http.fixture.token' ), 'Connection recovery notice is absent, lacks diagnostics access, or leaks a token.' );
 	check_http( 302 === request( $post, $jars[0], $form )['status'], 'Saving connection while delivery is paused failed.' );
 	wp_cache_delete( \WP_Druid_Pulse\DeliveryState::OPTION, 'options' );
 	check_http( 0 === \WP_Druid_Pulse\DeliveryState::read()['retry_at'], 'Connection save did not clear delivery pause.' );

@@ -73,3 +73,16 @@ La suite HTTP incluye `clicks-http.php`: pantalla y guardado por administrador, 
 El simulador responde únicamente a la URL ficticia de OAuth, bloquea las demás solicitudes de la HTTP API y deshabilita el ejecutor asíncrono de Action Scheduler para controlar las ejecuciones en las pruebas. Copiar el archivo al directorio de MU plugins, con permisos de lectura para PHP. Las credenciales del archivo son exclusivamente de prueba; no añadirlo al repositorio. Retirar el simulador, las credenciales y la instalación desechable al terminar. Estos archivos no se incluyen en el ZIP del plugin.
 
 `diagnostics.php` necesita las mismas credenciales y fixture HTTP que `admin-http.php`. Ejecutar con `WP_TEST_BOOTSTRAP` y, si procede, `WP_TEST_CREDENTIALS`. Comprueba metadatos y privacidad, contadores globales/pausa, filtros y paginación, permisos/nonces/métodos, programación sin envío, limpieza, reintentos con conservación de datos, selecciones antiguas y dos POST simultáneos. Simula esquema incompatible, estado corrupto y tabla ausente para verificar consulta y bloqueo de acciones, además de fallos SQL, pérdida de bloqueo y reencolado correcto con fallo posterior de programación. No ejecutar sobre datos reales: vacía la cola y modifica temporalmente el esquema de pruebas.
+
+`admin-ux.php` usa las mismas credenciales para comprobar el buscador privado de páginas, permisos/nonces, paginación, referencias no disponibles y el guardado JSON de 220 reglas sin truncamiento por `max_input_vars`. Restaura las reglas originales y elimina sus contenidos al terminar.
+
+`admin-ux-browser.cjs` comprueba el editor con Chrome: búsqueda y selección entre páginas, cancelación, presets, errores en filas ocultas, guardado desde la última página sin perder cambios, tamaño móvil y captura real del clic configurado. Requiere las fixtures HTTP anteriores y una instalación **desechable** con `WP_DRUID_PULSE_TESTING=true`. Preparar 25 páginas y 22 reglas sintéticas, ejecutar el navegador, contrastar lo guardado y restaurar la fixture, también si falla la prueba:
+
+```sh
+WP_TEST_BOOTSTRAP=/ruta/wordpress/wp-load.php php tests/fixtures/admin-ux.php seed
+WP_TEST_URL=http://127.0.0.1:18841 WP_TEST_CREDENTIALS=/ruta/credenciales-de-prueba.json node tests/admin-ux-browser.cjs
+WP_TEST_BOOTSTRAP=/ruta/wordpress/wp-load.php php tests/fixtures/admin-ux.php verify
+WP_TEST_BOOTSTRAP=/ruta/wordpress/wp-load.php php tests/fixtures/admin-ux.php restore
+```
+
+`WP_TEST_SCREENSHOT_DIR` permite guardar capturas en un directorio local existente. La fixture `admin-ux.php` es un script CLI; no se copia a MU plugins. Las pruebas no acceden a Pulse ni deben ejecutarse sobre la demo manual o un sitio real.

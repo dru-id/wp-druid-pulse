@@ -1,16 +1,16 @@
 === DruID Pulse for WordPress ===
 Requires at least: 6.9
 Requires PHP: 8.3
-Stable tag: 0.10.0
+Stable tag: 0.10.1
 
 Base instalable del plugin independiente de actividad autenticada para DruID Pulse.
 
 == Descripción ==
 
-Versión de desarrollo 0.10.0.
+Versión de desarrollo 0.10.1.
 
 Permite seleccionar y guardar contenidos para páginas vistas desde el menú
-DruID Pulse > Tracking y configurar OAuth2 desde DruID Pulse > Connection.
+DruID Pulse > Page views y configurar OAuth2 desde DruID Pulse > Connection.
 Incluye almacén de eventos, mantenimiento mediante Action Scheduler, receptor
 autenticado y un SDK JavaScript independiente con adaptador WordPress para vistas
 y clics seleccionados, con entrega automática a Pulse en segundo plano.
@@ -29,7 +29,7 @@ Requiere WordPress 6.9 y PHP 8.3 o posteriores.
 2. Subir el ZIP desde Plugins > Añadir nuevo plugin > Subir plugin.
 3. Instalar y activar DruID Pulse for WordPress.
 4. Comprobar el estado del plugin y que el frontend siga funcionando.
-5. Abrir DruID Pulse > Tracking y guardar la selección de vistas.
+5. Abrir DruID Pulse > Page views y guardar la selección de vistas.
 
 WordPress comprueba las versiones requeridas antes de permitir la activación.
 
@@ -54,8 +54,14 @@ de clics es independiente del catálogo de vistas y se configura en Clicks.
 
 == Selección y captura de clics ==
 
-DruID Pulse > Clicks permite añadir inclusiones y exclusiones con selector CSS,
-prefijo de clase opcional y ámbito global o IDs de contenidos del catálogo.
+DruID Pulse > Clicks permite elegir todos los enlaces y botones, solo enlaces,
+solo botones o un selector CSS propio, con prefijo de clase opcional desplegable.
+Para seguir una página: Add rule > All links and buttons > Selected pages >
+Choose pages. Buscar por título, marcar las páginas, aplicar con Use selected
+pages y guardar con Save click rules. No es necesario introducir IDs.
+Entire website aplica la regla a todo el frontend compatible. El editor muestra
+20 reglas por página y guarda los cambios de todas ellas. El buscador también
+pagina 20 contenidos y conserva la selección entre búsquedas.
 Por ejemplo, #main-menu a[href] selecciona enlaces dentro de ese menú. Las
 exclusiones prevalecen y reglas solapadas no duplican una misma interacción.
 Inicialmente no hay reglas y no se capturan clics. Guardar requiere manage_options
@@ -240,6 +246,14 @@ consulta si falla la inicialización; bloquea acciones ante recursos incompatibl
 No permite vaciar la cola ni editar eventos. Se mantiene el esquema 6 de 0.9.0.
 
 == Registro de cambios ==
+
+= 0.10.1 =
+
+* Selector de páginas por título para clics, sin introducir IDs de WordPress.
+* Opciones para todos los enlaces/botones y editor paginado a 20 reglas.
+* Guardado completo entre páginas y conservación de referencias existentes.
+* Pantallas y ayudas simplificadas; identificadores técnicos bajo Diagnostics.
+* Sin cambios en el SDK, el formato de eventos ni el esquema persistido.
 
 = 0.10.0 =
 
