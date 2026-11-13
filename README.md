@@ -151,7 +151,6 @@ Si pides soporte, indica la versión, el estado y el mensaje de error de Diagnos
 - Los eventos caducan a los **7 días desde su recepción en WordPress**, también si el plugin está desactivado. Los confirmados por Pulse se eliminan de la cola local.
 - La cola admite **10.000 eventos o 100 MiB de datos de contexto**, lo que se alcance antes. Cuando está llena, rechaza nuevos eventos sin expulsar los ya guardados. La limpieza periódica retira los caducados.
 - Si cambias la conexión mientras hay eventos pendientes, estos se enviarán al nuevo destino. Los cambios en el perfil del usuario también se reflejan al enviar.
-- El secreto OAuth se guarda **sin cifrar en la base de datos y sus copias de seguridad**. El plugin no lo devuelve en los formularios ni lo entrega al navegador.
 - Las páginas autenticadas y su configuración deben quedar fuera de cachés compartidas. El plugin no añade un gestor de consentimiento; configura el seguimiento conforme a la política de datos de tu sitio.
 
 El cierre del navegador o una pérdida de conexión pueden impedir que se registre una interacción. Ante errores de comunicación con Pulse también pueden producirse duplicados.
@@ -167,8 +166,6 @@ Borrar los archivos manualmente no ejecuta la limpieza de datos. Si duplicas el 
 ## Compatibilidad y documentación adicional
 
 La captura automática requiere una sesión WordPress y JavaScript. No registra actividad en administración, previsualizaciones ni contenido cuya contraseña nativa siga pendiente. No detecta cambios de ruta SPA/AJAX ni interacciones dentro de iframes; la configuración de un gestor de acceso externo puede necesitar comprobaciones adicionales.
-
-La versión 0.10.1 se ha validado en un entorno aislado con WordPress 6.9.4, PHP 8.3.31, MySQL 8.0 y Chrome 150. **La entrega se ha probado con respuestas HTTP simuladas, no contra un despliegue real de Pulse.** Comprueba el recorrido completo con tu destino y con el tema, caché y plugins de tu instalación antes de darla por validada.
 
 - [Referencia para desarrollo](docs/technical-reference.md): extensiones y contratos técnicos, si necesitas ampliar o mantener el plugin.
 - [Ejemplo del SDK independiente](examples/tracker.html): captura en el navegador sin WordPress ni envío a Pulse. El plugin ya carga y configura el SDK; no necesitas añadir este ejemplo a tu web.

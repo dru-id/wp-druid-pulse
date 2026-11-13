@@ -126,11 +126,10 @@ La cola admite 10.000 eventos o 100 MiB de contexto; al llenarse rechaza nuevas
 entradas sin expulsar las anteriores. Si cambias la conexión, los pendientes
 se enviarán al nuevo destino. El perfil del usuario se consulta al enviar.
 
-El secreto OAuth queda sin cifrar en la base de datos y sus copias de seguridad;
-no se muestra en el formulario ni se entrega al navegador. No se capturan valores
-de formularios ni el teléfono del perfil. Las etiquetas y destinos seleccionados
-pueden contener información personal. Las páginas autenticadas deben quedar
-fuera de cachés compartidas; el plugin no incorpora un gestor de consentimiento.
+No se capturan valores de formularios ni el teléfono del perfil. Las etiquetas
+y destinos seleccionados pueden contener información personal. Las páginas
+autenticadas deben quedar fuera de cachés compartidas; el plugin no incorpora
+un gestor de consentimiento.
 
 == Actualizar, desactivar o eliminar ==
 
@@ -152,11 +151,6 @@ La captura requiere JavaScript y no registra administración, previsualizaciones
 ni contenido cuya contraseña nativa siga pendiente. No detecta navegación
 SPA/AJAX ni interacciones dentro de iframes. El cierre del navegador y los errores
 de conexión pueden provocar pérdidas; los reintentos pueden provocar duplicados.
-
-Validado en un entorno aislado con WordPress 6.9.4, PHP 8.3.31, MySQL 8.0 y
-Chrome 150. La entrega se ha probado con respuestas HTTP simuladas, no contra
-un despliegue real de Pulse. Comprobar el recorrido completo con tu destino,
-tema, caché y plugins antes de dar la instalación por validada.
 
 == Registro de cambios ==
 

@@ -15,6 +15,8 @@ Esta versión usa el esquema 6 y conserva seis opciones propias:
 
 El token OAuth se conserva temporalmente en el transient `wp_druid_pulse_oauth_token`, ligado a las opciones de conexión y con caducidad. Cambiar los ajustes lo invalida; un token ausente o caducado se obtiene de nuevo cuando se solicita una operación. Los eventos se guardan en `<prefijo>druid_pulse_events`. Action Scheduler utiliza su infraestructura compartida y programa la entrega y el mantenimiento propios del plugin.
 
+El secreto OAuth se conserva sin cifrar en la opción de conexión y en las copias de seguridad de la base de datos. No se devuelve en los formularios ni se entrega al navegador.
+
 Activación y actualización inicializan únicamente los recursos que faltan y avanzan al esquema 6 después de comprobarlos. Desde 0.9.0 se añaden metadatos de entrega a la tabla existente, una opción de recuperación y la tarea periódica de entrega, conservando configuración, eventos y mantenimiento. Los eventos anteriores pasan a estar pendientes de envío con la conexión guardada. Las actualizaciones de versiones anteriores mantienen sus datos e inicializan los recursos incorporados después. La actualización de un plugin activo se comprueba en `init`, después de inicializar Action Scheduler, sin necesitar una reactivación. No se rebajan esquemas más recientes ni se reinician datos incompatibles.
 
 - **Desactivar/reactivar:** conserva selección, UUID, credenciales y eventos. Desactivar cancela las tareas propias pendientes; una ejecución ya iniciada puede terminar. Reactivar restablece mantenimiento y entrega, conservando las esperas de reintento. La caducidad continúa durante la desactivación y los vencidos no se recuperan para envío.
@@ -148,6 +150,10 @@ Se capturan enlaces `a[href]` y botones HTML `button`, incluidos hijos como icon
 La configuración inválida lanza `invalid_configuration`. Los errores de captura automática llegan a `onError(error, {type})` con códigos `context_failed`, `invalid_event` o `consumer_failed`; los envíos explícitos rechazan su promesa y deben manejarse en el llamador. Los errores no incluyen el contexto ni la excepción original del consumidor. Si el propio `onError` falla, se notifica un error global `error_handler_failed`. Un fallo no provoca reintentos ni bloquea navegación.
 
 WordPress conecta este SDK con `wpDruidPulse.send` mediante `assets/frontend-views.js`, cuando hay vistas o inclusiones de clics aplicables. Conserva el handle existente `wp-druid-pulse-views` para este adaptador común. `wpDruidPulse.tracker` permite acceder a esa instancia. El adaptador emite el evento de ventana `wp-druid-pulse:tracking-result` tras cada resultado del transporte o fallo automático, con `detail: { type, result }` y sin contexto ni actor. Los resultados conservan `accepted`, `rejected` o `unknown`; confirmar aceptación local no acredita entrega a Pulse. La prevención de duplicados del ciclo de vida no deduplica peticiones repetidas al receptor.
+
+## Alcance de la verificación
+
+La versión 0.10.1 se ha validado en un entorno aislado con WordPress 6.9.4, PHP 8.3.31, MySQL 8.0 y Chrome 150. La entrega se ha probado con respuestas HTTP simuladas, no contra un despliegue real de Pulse. Esa verificación no acredita todos los temas, plugins de acceso, cachés ni navegadores. La [guía del integrador](../README.md#comprobar-la-integración) describe cómo comprobar el recorrido con el destino y la instalación elegidos.
 
 ## Desarrollo y distribución
 
