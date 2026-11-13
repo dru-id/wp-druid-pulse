@@ -3,247 +3,160 @@ Requires at least: 6.9
 Requires PHP: 8.3
 Stable tag: 0.10.1
 
-Base instalable del plugin independiente de actividad autenticada para DruID Pulse.
+Páginas vistas y clics de usuarios autenticados de WordPress enviados a DruID Pulse.
 
 == Descripción ==
 
 Versión de desarrollo 0.10.1.
 
-Permite seleccionar y guardar contenidos para páginas vistas desde el menú
-DruID Pulse > Page views y configurar OAuth2 desde DruID Pulse > Connection.
-Incluye almacén de eventos, mantenimiento mediante Action Scheduler, receptor
-autenticado y un SDK JavaScript independiente con adaptador WordPress para vistas
-y clics seleccionados, con entrega automática a Pulse en segundo plano.
-La prueba de conexión solicita un token; no envía eventos ni crea identidades.
+Selecciona las páginas, enlaces y botones que quieres registrar desde el panel
+DruID Pulse. Los eventos se envían en segundo plano. No se registran visitantes
+anónimos y las selecciones de vistas y clics empiezan vacías.
 
-No requiere wp-druid ni WooCommerce. Guarda esquema, selección, UUID y conexión
-mediante Options API, y un token temporal mediante Transients API. Usa la tabla
-<prefijo>druid_pulse_events y distribuye Action Scheduler 4.2.0 con sus licencias.
-Los eventos individuales usan POST /identities con OAuth2 y externalId estable.
+Guía completa de instalación, configuración y comprobación para integradores:
+https://github.com/dru-id/wp-druid-pulse#readme
 
-Requiere WordPress 6.9 y PHP 8.3 o posteriores.
+Requiere WordPress 6.9 y PHP 8.3 o posteriores, una cuenta con permiso para
+administrar ajustes y credenciales OAuth2 autorizadas para enviar a Pulse.
+No requiere wp-druid, WooCommerce, Composer ni npm. Incluye Action Scheduler
+con sus licencias. WP-Cron o un ejecutor de Action Scheduler deben funcionar
+para entregar eventos y limpiar los caducados. Multisite no está soportado.
 
-== Instalación ==
+== Instalación y conexión ==
 
-1. Utilizar una instalación de WordPress de desarrollo compatible.
-2. Subir el ZIP desde Plugins > Añadir nuevo plugin > Subir plugin.
-3. Instalar y activar DruID Pulse for WordPress.
-4. Comprobar el estado del plugin y que el frontend siga funcionando.
-5. Abrir DruID Pulse > Page views y guardar la selección de vistas.
+1. Subir el ZIP instalable desde Plugins > Añadir nuevo plugin > Subir plugin.
+2. Instalar y activar DruID Pulse for WordPress.
+3. Abrir DruID Pulse > Connection e introducir las URLs HTTPS base de Pulse y
+   del servidor de autorización, el cliente OAuth y su secreto.
+4. Elegir el método de autenticación habilitado para ese cliente. Rellenar
+   scopes y tenant solo si la conexión los requiere.
+5. Pulsar Save connection y después Test OAuth authentication.
+6. Configurar Page views y Clicks, y comprobar la integración como se indica abajo.
 
-WordPress comprueba las versiones requeridas antes de permitir la activación.
+La URL de Pulse se introduce sin /identities; la de autorización, sin
+/oauth2/token. La prueba OAuth utiliza los ajustes guardados: solicita un token,
+pero no envía eventos ni acredita que Pulse vaya a aceptarlos.
 
-== Selección de vistas ==
+El secreto guardado no vuelve a mostrarse. Dejar el campo vacío lo conserva;
+escribir otro lo sustituye. Para eliminarlo, marcar Remove saved secret y dejar
+el campo vacío. Site shown in Pulse muestra el nombre y la dirección del sitio,
+que se toman de Ajustes > Generales.
 
-La selección empieza vacía. El catálogo muestra páginas, entradas y contenidos
-publicados de tipos públicos visibles en el frontend. Incluye la portada y la
-página de entradas, sin duplicar las páginas que desempeñan esas funciones.
-No incluye adjuntos, contenidos no publicados ni otros archivos o rutas especiales.
+== Páginas vistas ==
 
-Se puede buscar por título, filtrar por tipo y selección y navegar entre páginas.
-Guardar modifica únicamente las filas mostradas y conserva las demás selecciones.
-Los contenidos nuevos y los descendientes no se seleccionan automáticamente.
+En DruID Pulse > Page views, buscar por título, marcar los contenidos y pulsar
+Save selection. El catálogo muestra 20 contenidos por página. Guardar antes
+de cambiar de página o filtros: solo se modifican las filas visibles y se
+conservan las selecciones ya guardadas en otras páginas.
 
-Las referencias se conservan por ID aunque cambien el título o la URL. Las que
-dejan de estar disponibles se muestran en Unavailable selections, desde donde
-se pueden retirar. Recuperan su selección si vuelven a estar disponibles con el
-mismo ID. Cambiar la portada no selecciona automáticamente otra página.
+Se incluyen páginas, entradas, contenidos publicados de tipos públicos, la
+portada y la página de entradas. No se incluyen categorías, etiquetas,
+búsquedas, otros archivos ni adjuntos. Los contenidos nuevos y descendientes
+no se seleccionan automáticamente. Las selecciones sobreviven a cambios de
+título o URL; Unavailable selections permite retirar las que ya no están disponibles.
 
-Configurar y guardar requiere manage_options y un nonce válido. La selección
-de clics es independiente del catálogo de vistas y se configura en Clicks.
+Una página seleccionada genera una vista al estar preparada y visible para
+un usuario con sesión iniciada. Recargar o volver mediante Atrás/Adelante
+cuenta otra vista; cambiar de pestaña y regresar no.
 
-== Selección y captura de clics ==
+== Clics ==
 
-DruID Pulse > Clicks permite elegir todos los enlaces y botones, solo enlaces,
-solo botones o un selector CSS propio, con prefijo de clase opcional desplegable.
-Para seguir una página: Add rule > All links and buttons > Selected pages >
-Choose pages. Buscar por título, marcar las páginas, aplicar con Use selected
-pages y guardar con Save click rules. No es necesario introducir IDs.
-Entire website aplica la regla a todo el frontend compatible. El editor muestra
-20 reglas por página y guarda los cambios de todas ellas. El buscador también
-pagina 20 contenidos y conserva la selección entre búsquedas.
-Por ejemplo, #main-menu a[href] selecciona enlaces dentro de ese menú. Las
-exclusiones prevalecen y reglas solapadas no duplican una misma interacción.
-Inicialmente no hay reglas y no se capturan clics. Guardar requiere manage_options
-más nonce. Las referencias de contenido funcionan también con enlaces simples.
+Para registrar todos los enlaces y botones de una página:
 
-El SDK 0.2.0 ofrece pages y clicks.include/exclude sin depender de WordPress.
-getContext recibe type y element; emit recibe el evento. El SDK no envía HTTP.
-Detecta a[href] y button, incluidos iconos interiores y elementos dinámicos.
-Ratón, teclado nativo y toque cuentan una activación; el botón central solo en
-enlaces. No registra clic derecho, eventos programáticos, teclas o formularios.
-track() conserva la emisión explícita de cualquier tipo de evento.
+1. Abrir DruID Pulse > Clicks y pulsar Add rule.
+2. Mantener Track y All links and buttons.
+3. Elegir Selected pages > Choose pages, buscar por título y marcar las páginas.
+4. Confirmar con Use selected pages y pulsar Save click rules.
 
-El adaptador conserva página origen, etiqueta y destino HTTP(S), tel o mailto.
-El origen usa el enlace permanente o una ruta sin parámetros de navegación.
-Un botón sin destino conocido no inventa target. No se capturan HTML ni valores
-de formularios. Las URLs y los campos de entrada se validan antes de encolar.
-El servidor no puede acreditar que la interacción haya ocurrido en el DOM.
-Enviar tel a un despliegue de Pulse requiere su validador compatible.
+No hace falta conocer IDs ni añadir clases. Entire website aplica la regla a
+todo el frontend compatible. También se puede elegir All links, All buttons
+o CSS selector. Por ejemplo, #main-menu a[href] selecciona enlaces de ese menú.
+El selector debe coincidir con el enlace o botón, no solo con su contenedor.
+Filter by class prefix permite limitar la regla a clases que empiecen por un texto.
 
-== Captura de vistas ==
+Exclude omite elementos y prevalece sobre Track. Varias reglas coincidentes
+no duplican una activación. Vistas y clics se configuran de forma independiente.
 
-Guardar la selección habilita vistas en las siguientes cargas del contenido para
-usuarios autenticados de cualquier rol. Se captura una vez con HTML preparado y
-página visible. Recarga y retorno por historial cuentan de nuevo; cambiar de
-pestaña no. Sin JavaScript no se captura. Se excluyen previsualizaciones,
-Personalizador, embeds, errores y pantallas con contraseña nativa pendiente.
-No se observan cambios SPA/AJAX automáticamente.
+El editor muestra 20 reglas por página y conserva los cambios al paginar;
+Save click rules guarda todas las reglas. El selector de páginas también
+pagina y conserva las marcas entre búsquedas.
 
-WordPress fija título y URL al recibir la referencia. Usa el enlace permanente
-base, conserva parámetros estructurales y no copia campañas/filtros/fragmentos de
-navegación. La paginación cuenta otra vista del mismo contenido. Los cambios
-posteriores no modifican eventos aceptados. El SDK genérico no impone esta política.
+== Usuarios y comprobación ==
 
-assets/tracker.js expone DruidTracker.create con id, getContext, emit y onError.
-Sus instancias ofrecen start, stop y track(type, context). Contexto y consumidor
-son configurables; admite tipos adicionales sin depender de WordPress o HTTP.
-Inicio/parada e inicialización repetidos no duplican listeners ni vistas. El mismo
-id conserva configuración y estado durante el documento. Stop no cancela envíos
-ya invocados. El README del repositorio documenta el contrato y su ejemplo sin PHP.
+Se necesita una sesión WordPress, con cualquier rol, también administrador en
+el frontend. Con wp-druid, el usuario debe estar asociado a una identidad DruID.
+Sin wp-druid, necesita un correo real y válido en su perfil WordPress; se envían
+también nombre y apellidos si están disponibles. Sin identificación no se envía.
 
-== Conexión y origen ==
+Para comprobarlo, usar un usuario y contenidos de prueba del entorno configurado:
 
-Connection permite guardar las URLs HTTPS de Pulse y del servidor de autorización,
-cliente, secreto y método OAuth. Los scopes y X-Tenant son opcionales según el
-destino. Test OAuth authentication prueba los ajustes guardados, sin enviar eventos.
+1. Guardar la conexión y probar la autenticación OAuth.
+2. Seleccionar una página para vistas y una regla de clics para esa página.
+3. Iniciar sesión y abrir la página publicada, fuera del editor o previsualización.
+4. Activar un enlace o botón incluido en la regla.
+5. Revisar DruID Pulse > Diagnostics y los posibles errores.
+6. Comprobar en Pulse la vista y el clic del usuario, asociados al sitio correcto.
 
-El secreto queda sin cifrar en la base de datos y sus copias, pero no se devuelve
-al formulario. Dejarlo vacío lo conserva; Remove saved secret lo elimina de forma
-explícita. Las peticiones no siguen redirecciones con las credenciales.
-
-El origen usa el título y la URL pública de WordPress. Su UUID persiste al cambiar
-nombre o dominio; una copia destinada a otra web necesita un UUID diferente.
-El trabajador entrega los eventos con la conexión actual. Los pendientes caducan
-a los 7 días, incluso durante fallos o desactivación.
-
-== Almacén y mantenimiento ==
-
-El registro compacto guarda tipo, versión, UUID, fecha original en UTC, recepción,
-caducidad, ID WordPress del usuario y contexto de página/enlace. No guarda copias
-del perfil ni del payload final. Al preparar el envío consulta al usuario y la
-aplicación actuales, sin necesitar una sesión activa. Si falta la identidad o el
-formato no es compatible, devuelve un error. La fecha y el contexto del hecho se
-conservan; cada intento de transporte utiliza la conexión vigente.
-
-Caduca a los 7 días desde la aceptación, también mientras está desactivado.
-Los vencidos nunca son elegibles. El mantenimiento horario los elimina en lotes
-de hasta 500, según se ejecute WordPress; no garantiza una hora exacta de borrado.
-Los límites son 10.000 eventos o 100 MiB de JSON de contexto, y 64 KiB por contexto;
-no incluyen el espacio de filas e índices. Los vencidos cuentan hasta su purga.
-La inserción rechaza explícitamente saturación, bloqueo ocupado o fallo de BD,
-sin expulsar eventos aceptados, incluso bajo concurrencia.
-
-Action Scheduler recibe tareas sin datos personales. El trabajador admite más
-tipos mediante el registro común, procesa hasta 25 eventos por pasada y respeta
-un presupuesto de tiempo. Comprueba pendientes cada minuto y continúa por tareas,
-con un trabajador activo por instalación. Depende de WP-Cron o un ejecutor AS.
-
-200/201 con cuerpo coherente confirma aceptación remota y retira el evento local.
-Red, timeout, respuesta ambigua, 408, 429 y 5xx reintentan tras 1, 5, 15 y 60
-minutos; luego cada hora, sin prolongar caducidad. Respeta Retry-After mayor.
-Los fallos comunes pausan el conjunto de envíos. Un 401 renueva el token para
-un nuevo intento; autorización/configuración persistentes esperan una hora.
-Connection muestra un código controlado; guardar la conexión despeja esa pausa.
-
-400/413 o contexto inválido quedan fallidos; 409 queda como conflicto sin
-confirmar entrega. No reintentan automáticamente y cuentan para los límites
-hasta caducar. Identidad no disponible, 422 o mapeador/formato desconocidos se
-revisan cada hora. No se inventa identidad ni se guarda la respuesta remota.
-
-El UUID local se envía como externalId estable. Una respuesta perdida puede
-requerir reintento; no se garantiza procesamiento exactamente una vez. Un 409
-puede corresponder a una reserva remota incompleta y se conserva para revisión.
-No hay acción manual de reenvío en esta versión. Un proceso interrumpido deja
-un intento recuperable tras un minuto. Una confirmación persistida pendiente
-de borrado se limpia sin reenviar.
-
-== Recepción autenticada ==
-
-La ruta REST local POST /wp-druid-pulse/v1/events exige cookie de sesión válida y
-nonce wp_rest en X-WP-Nonce. Acepta todos los roles autenticados, obtiene el usuario
-en servidor y no admite contraseñas de aplicación ni CORS entre orígenes.
-Recibe únicamente type, published (UTC, YYYY-MM-DDTHH:MM:SSZ) y context, con un
-máximo de 16 KiB por cuerpo JSON. Cada tipo necesita un validador registrado.
-page_view recibe únicamente context.page.key (post:ID o home:posts). WordPress
-revalida selección, publicación y acceso nativo, y resuelve título/URL al recibir.
-click recibe la página origen (key/url/title), la etiqueta del enlace y el destino
-conocido opcional. Revalida el origen, las inclusiones aplicables y la disponibilidad
-del contenido. Conserva ese contexto para la preparación posterior.
-
-202 confirma almacenamiento local con un UUID; no confirma entrega a Pulse.
-Los errores de validación, sesión, tamaño, capacidad o BD no se presentan como éxito.
-La API window.wpDruidPulse.send(event) se carga en el frontend autenticado, sin
-generar eventos. Devuelve accepted, rejected o unknown si no puede determinar
-el resultado. Usa fetch con keepalive, sin esperar para navegar ni garantizar
-entrega al cerrar la página. No hay reintentos ni almacenamiento sin conexión.
-
-Un rechazo de sesión/nonce pausa el transporte hasta recargar. No se reutilizan
-eventos antiguos con un nonce de otro usuario. Excluir las páginas autenticadas
-de cachés compartidas; la respuesta del receptor es privada y no almacenable.
-Estas protecciones no demuestran que una interacción haya ocurrido ni impiden
-que un usuario autenticado reproduzca sus peticiones válidas.
-
-== Desactivación y eliminación ==
-
-Desactivar conserva los datos propios y cancela las tareas propias pendientes; una
-ejecución iniciada puede terminar. Reactivar restablece mantenimiento y entrega sin
-reiniciar datos ni recuperar eventos caducados para envío.
-Eliminar desde la pantalla de plugins de WordPress borra únicamente las opciones
-wp_druid_pulse_view_selection, wp_druid_pulse_schema_version,
-wp_druid_pulse_installation_id, wp_druid_pulse_connection y
-wp_druid_pulse_click_rules y wp_druid_pulse_delivery, además del transient
-wp_druid_pulse_oauth_token, la tabla de eventos y las tareas/registros propios.
-Conserva las tablas compartidas de Action Scheduler y las tareas ajenas.
-Una reinstalación
-comienza con datos nuevos. Si falla un borrado, la eliminación se interrumpe y
-puede reintentarse para retirar los datos restantes. Borrar archivos manualmente
-no ejecuta esta limpieza.
-
-== Actualizaciones ==
-
-Este paquete no se actualiza desde el directorio de plugins de WordPress.org.
-Las siguientes versiones de desarrollo se distribuirán como paquetes ZIP.
-La versión del esquema se comprueba en cada carga, también al actualizar un
-plugin activo sin volver a activarlo. La actualización desde 0.1.0 o 0.2.0 crea
-la selección vacía si no existe. La actualización a 0.5.0 añade la tabla y el
-mantenimiento y solo avanza al esquema 4 tras comprobarlos. Conserva selección,
-UUID y conexión existentes. Los errores de lectura o guardado se muestran sin
-reiniciar los datos.
-La versión 0.8.0 incorpora reglas de clics vacías y avanza al esquema 5,
-conservando los ajustes, eventos y mantenimiento existentes.
-La versión 0.9.0 avanza al esquema 6: añade metadatos de entrega a la tabla,
-estado de pausa común y comprobación periódica. Conserva el contexto y la
-caducidad de los pendientes, que pasan a enviarse con la conexión guardada.
-
-Si la inicialización falla, la activación se interrumpe. Si el plugin ya estaba
-activo, conserva los datos y deja sus funciones en pausa; los usuarios con
-capacidad para activar plugins reciben un aviso en administración. Se reintenta
-en peticiones posteriores. Nunca se reemplaza automáticamente un esquema más
-reciente o desconocido: hay que restaurar una versión compatible o revisar los
-metadatos de instalación.
+Esta prueba sí envía eventos. Los eventos pueden entregarse antes de abrir
+Diagnostics: una cola vacía no demuestra por sí sola captura ni entrega.
 
 == Diagnóstico y mantenimiento ==
 
-DruID Pulse > Diagnostics muestra versiones/esquema, configuración, pausa común,
-tareas y cola actual. Requiere manage_options. No comprueba la conexión remota ni
-muestra usuario, contexto, URLs, títulos, credenciales o respuestas remotas.
-Los contadores distinguen elegibles, esperas, fallos, conflictos, caducados y
-aceptados pendientes de borrado; los caducados tienen precedencia.
-El listado admite filtros y 25 registros por página, con fechas en la zona horaria
-de WordPress. No crea historial: los datos desaparecen al entregar o limpiar.
-Los logs de Action Scheduler tienen su retención propia. Completar una tarea no
-acredita entrega; puede haberse programado otro intento.
+Diagnostics muestra configuración, estado de entrega y eventos retenidos.
+Permite filtrar por estado y tipo y muestra 25 registros por página, sin
+perfiles ni contenido de los eventos. No es un histórico de enviados.
 
-Process pending programa trabajo elegible respetando pausas y fechas, sin HTTP
-desde el formulario. Clean expired elimina caducados y hasta 500 aceptados por
-pasada, sin borrar pendientes vigentes. Retry selected failed events devuelve a
-pendientes solo fallidos vigentes, después de corregir la causa. Mantiene ID,
-contexto, fechas e intentos acumulados; respeta la pausa común. No reintenta
-conflictos 409 ni caducados, y protege frente a selecciones antiguas o simultáneas.
-Las acciones comprueban POST, capacidad y nonce. La pantalla conserva acceso de
-consulta si falla la inicialización; bloquea acciones ante recursos incompatibles.
-No permite vaciar la cola ni editar eventos. Se mantiene el esquema 6 de 0.9.0.
+Process pending programa trabajo en segundo plano; respeta las pausas y
+las fechas de reintento. Si Ready to send no avanza, comprobar el ejecutor de
+tareas en Technical details and scheduled tasks. Una tarea completada no
+acredita entrega: puede haber programado un reintento.
+
+Waiting to retry indica una espera. Revisar el error y la fecha del próximo
+intento. Guardar la conexión despeja la pausa común, pero respeta las esperas
+de cada evento. Tras corregir la causa, Retry selected failed events permite
+reintentar fallidos vigentes sin reiniciar su caducidad. Los conflictos no
+se pueden reintentar manualmente. Clean expired retira caducados y registros
+ya entregados pendientes de borrado, conservando pendientes vigentes.
+
+== Datos y conservación ==
+
+Los eventos caducan a los siete días desde su recepción local, también durante
+fallos o desactivación. Los confirmados por Pulse se eliminan de la cola.
+La cola admite 10.000 eventos o 100 MiB de contexto; al llenarse rechaza nuevas
+entradas sin expulsar las anteriores. Si cambias la conexión, los pendientes
+se enviarán al nuevo destino. El perfil del usuario se consulta al enviar.
+
+El secreto OAuth queda sin cifrar en la base de datos y sus copias de seguridad;
+no se muestra en el formulario ni se entrega al navegador. No se capturan valores
+de formularios ni el teléfono del perfil. Las etiquetas y destinos seleccionados
+pueden contener información personal. Las páginas autenticadas deben quedar
+fuera de cachés compartidas; el plugin no incorpora un gestor de consentimiento.
+
+== Actualizar, desactivar o eliminar ==
+
+Las actualizaciones compatibles conservan configuración y eventos. Este plugin
+no tiene un servicio propio de actualizaciones automáticas ni se actualiza desde
+WordPress.org. Para actualizar, instalar el nuevo paquete mediante WordPress.
+
+Desactivar conserva ajustes, credenciales y eventos y cancela las tareas propias
+pendientes; una ejecución iniciada puede terminar. Reactivar recupera las tareas
+sin reiniciar la caducidad. Eliminar desde WordPress borra los datos y tareas
+propios, conservando los recursos compartidos y las tareas de otros plugins.
+Reinstalar después empieza con configuración vacía. Borrar archivos manualmente
+no ejecuta la limpieza. Antes de activar una copia independiente del sitio,
+seguir el procedimiento de clonación enlazado desde la guía del repositorio.
+
+== Compatibilidad ==
+
+La captura requiere JavaScript y no registra administración, previsualizaciones
+ni contenido cuya contraseña nativa siga pendiente. No detecta navegación
+SPA/AJAX ni interacciones dentro de iframes. El cierre del navegador y los errores
+de conexión pueden provocar pérdidas; los reintentos pueden provocar duplicados.
+
+Validado en un entorno aislado con WordPress 6.9.4, PHP 8.3.31, MySQL 8.0 y
+Chrome 150. La entrega se ha probado con respuestas HTTP simuladas, no contra
+un despliegue real de Pulse. Comprobar el recorrido completo con tu destino,
+tema, caché y plugins antes de dar la instalación por validada.
 
 == Registro de cambios ==
 
